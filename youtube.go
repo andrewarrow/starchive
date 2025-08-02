@@ -13,16 +13,29 @@ func IsYouTubeID(input string) bool {
 }
 
 func DownloadVideo(youtubeID string) (string, error) {
-	mp4File := youtubeID
+	return DownloadVideoWithFormat(youtubeID, "mov")
+}
 
-	fmt.Printf("Detected YouTube ID: %s, downloading and converting to MOV...\n", youtubeID)
+func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
+	outputFile := youtubeID
 
-	// Use yt-dlp with ffmpeg post-processing to convert directly to MOV
+	var ffmpegCommand string
+	
+	if format == "mkv" {
+		fmt.Printf("Detected YouTube ID: %s, downloading and converting to HEVC 265 MKV...\n", youtubeID)
+		// HEVC 265 encoding for MKV
+		ffmpegCommand = fmt.Sprintf("ffmpeg -i {} -c:v libx265 -preset medium -crf 23 -c:a copy ./data/%s.mkv && rm {}", youtubeID)
+	} else {
+		fmt.Printf("Detected YouTube ID: %s, downloading and converting to MOV...\n", youtubeID)
+		// Default H.264 encoding for MOV
+		ffmpegCommand = fmt.Sprintf("ffmpeg -i {} -c:v h264_videotoolbox -b:v 10000k ./data/%s.mov && rm {}", youtubeID)
+	}
+
+	// Use yt-dlp with ffmpeg post-processing
 	cmd := exec.Command("yt-dlp",
-		"-o", "./data/"+mp4File,
+		"-o", "./data/"+outputFile,
 		"--restrict-filenames",
-		//"--exec", fmt.Sprintf("ffmpeg -i {} -c:v h264_videotoolbox -b:v 10000k -c:a copy ./data/%s.mov && rm {}", youtubeID),
-		"--exec", fmt.Sprintf("ffmpeg -i {} -c:v h264_videotoolbox -b:v 10000k ./data/%s.mov && rm {}", youtubeID),
+		"--exec", ffmpegCommand,
 		youtubeID)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -30,7 +43,7 @@ func DownloadVideo(youtubeID string) (string, error) {
 		return "", fmt.Errorf("error downloading and converting YouTube video: %v", err)
 	}
 
-	return mp4File, nil
+	return outputFile, nil
 }
 
 func DownloadSubtitles(youtubeID string) error {

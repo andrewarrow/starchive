@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,7 +60,7 @@ func (dq *DownloadQueue) processQueue() {
 		fmt.Printf("Processing video %s. Remaining in queue: %d\n", videoId, len(dq.queue))
 		dq.mutex.Unlock()
 		
-		_, err := DownloadVideo(videoId)
+		_, err := DownloadVideoWithFormat(videoId, videoFormat)
 		if err != nil {
 			fmt.Printf("Error downloading video %s: %v\n", videoId, err)
 		} else {
@@ -75,8 +76,13 @@ func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
 }
 
 var downloadQueue *DownloadQueue
+var videoFormat string
 
 func main() {
+	// Parse CLI flags
+	flag.StringVar(&videoFormat, "format", "mov", "Video format (mov or mkv)")
+	flag.Parse()
+	
 	downloadQueue = NewDownloadQueue()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Request received:", r.Method, r.URL.Path)
