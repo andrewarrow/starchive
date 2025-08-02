@@ -1,6 +1,6 @@
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "fetchData") {
-    fetch("http://localhost:3000/data")
+    fetch("http://localhost:3009/data")
       .then(res => res.json())
       .then(data => sendResponse(data))
       .catch(err => {
