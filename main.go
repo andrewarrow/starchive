@@ -5,9 +5,79 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 )
 
+type DownloadQueue struct {
+	queue     []string
+	isRunning bool
+	mutex     sync.Mutex
+}
+
+func NewDownloadQueue() *DownloadQueue {
+	return &DownloadQueue{
+		queue:     make([]string, 0),
+		isRunning: false,
+	}
+}
+
+func (dq *DownloadQueue) AddToQueue(videoId string) bool {
+	dq.mutex.Lock()
+	defer dq.mutex.Unlock()
+	
+	// Check if video is already in queue
+	for _, id := range dq.queue {
+		if id == videoId {
+			fmt.Printf("Video %s is already in queue\n", videoId)
+			return false
+		}
+	}
+	
+	dq.queue = append(dq.queue, videoId)
+	fmt.Printf("Added video %s to queue. Queue length: %d\n", videoId, len(dq.queue))
+	
+	if !dq.isRunning {
+		dq.isRunning = true
+		go dq.processQueue()
+	}
+	
+	return true
+}
+
+func (dq *DownloadQueue) processQueue() {
+	for {
+		dq.mutex.Lock()
+		if len(dq.queue) == 0 {
+			dq.isRunning = false
+			dq.mutex.Unlock()
+			fmt.Println("Queue is empty, stopping processor")
+			return
+		}
+		
+		videoId := dq.queue[0]
+		dq.queue = dq.queue[1:]
+		fmt.Printf("Processing video %s. Remaining in queue: %d\n", videoId, len(dq.queue))
+		dq.mutex.Unlock()
+		
+		_, err := DownloadVideo(videoId)
+		if err != nil {
+			fmt.Printf("Error downloading video %s: %v\n", videoId, err)
+		} else {
+			fmt.Printf("Successfully downloaded video %s\n", videoId)
+		}
+	}
+}
+
+func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
+	dq.mutex.Lock()
+	defer dq.mutex.Unlock()
+	return len(dq.queue), dq.isRunning
+}
+
+var downloadQueue *DownloadQueue
+
 func main() {
+	downloadQueue = NewDownloadQueue()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Request received:", r.Method, r.URL.Path)
 		fmt.Fprintf(w, "hello world")
@@ -41,14 +111,14 @@ func main() {
 			return
 		}
 
-		_, err = DownloadVideo(id)
-		if err != nil {
-			fmt.Printf("Error downloading video: %v\n", err)
-			http.Error(w, "Error downloading video", http.StatusInternalServerError)
+		added := downloadQueue.AddToQueue(id)
+		if !added {
+			fmt.Fprintf(w, "Video %s is already in download queue", id)
 			return
 		}
-
-		fmt.Fprintf(w, "Video download started for ID: %s", id)
+		
+		queueLength, isRunning := downloadQueue.GetQueueStatus()
+		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
 	})
 
 	fmt.Println("Server starting on port 3009...")
