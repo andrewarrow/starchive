@@ -36,3 +36,7 @@ A browser extension and local backend system that automatically archives YouTube
 - **yt-dlp**: For downloading YouTube videos
 - **ffmpeg**: For video format conversion and processing
 - **Go**: Backend server runtime
+
+## Other Starchive
+
+Not associated with [https://www.starchive.io/](https://www.starchive.io/)
