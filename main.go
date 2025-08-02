@@ -26,14 +26,29 @@ func main() {
 		}
 		defer r.Body.Close()
 		
-		var jsonData interface{}
+		var jsonData map[string]interface{}
 		if err := json.Unmarshal(body, &jsonData); err != nil {
 			fmt.Printf("Invalid JSON received: %s\n", string(body))
-		} else {
-			fmt.Printf("JSON received: %+v\n", jsonData)
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
 		}
 		
-		fmt.Fprintf(w, "Received")
+		fmt.Printf("JSON received: %+v\n", jsonData)
+		
+		id, ok := jsonData["id"].(string)
+		if !ok {
+			http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
+			return
+		}
+		
+		_, err = DownloadVideo(id)
+		if err != nil {
+			fmt.Printf("Error downloading video: %v\n", err)
+			http.Error(w, "Error downloading video", http.StatusInternalServerError)
+			return
+		}
+		
+		fmt.Fprintf(w, "Video download started for ID: %s", id)
 	})
 	
 	fmt.Println("Server starting on port 3009...")
