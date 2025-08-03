@@ -39,7 +39,7 @@ func (dq *DownloadQueue) processQueue(workerId string) {
 	for {
 		select {
 		case videoId := <-dq.queue:
-			if _, err := DownloadVideoWithFormat(videoId, videoFormat); err != nil {
+			if _, err := DownloadVideoWithFormat(dq.log, videoId, videoFormat); err != nil {
 				log.Error("Failed to download video", "videoId", videoId)
 			} else {
 				log.Info("Successfully downloaded video", "videoId", videoId)
@@ -87,7 +87,7 @@ func main() {
 		}
 		defer r.Body.Close()
 
-		var jsonData map[string]interface{}
+		var jsonData Api
 		if err := json.Unmarshal(body, &jsonData); err != nil {
 			log.
 				With("operation", "http",
@@ -104,25 +104,24 @@ func main() {
 			"url", r.URL.Path,
 		).Info("Request received")
 
-		id, ok := jsonData["videoId"].(string)
-		if !ok {
+		if jsonData.VideoId == "" {
 			http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
 			return
 		}
 
-		added := downloadQueue.AddToQueue(id)
+		added := downloadQueue.AddToQueue(jsonData.VideoId)
 		if !added {
 			log.With("operation", "http",
 				"method", r.Method,
 				"url", r.URL.Path,
-			).Error("Failed to add video", "videoId", id)
+			).Error("Failed to add video", "videoId", jsonData.VideoId)
 			return
 		}
 
 		log.With("operation", "http",
 			"method", r.Method,
 			"url", r.URL.Path,
-		).Info("Request processed", "videoId", id, "queueDepth", len(downloadQueue.queue))
+		).Info("Request processed", "videoId", jsonData.VideoId, "queueDepth", len(downloadQueue.queue))
 	})
 
 	log.Info("Starting server on port 3009...")
