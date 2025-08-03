@@ -1,5 +1,5 @@
 package main
 
-type Api struct {
+type API struct {
 	VideoID string `json:"videoId:omitempty"`
 }

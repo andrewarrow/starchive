@@ -20,6 +20,7 @@ func NewDownloadQueue(workers, depth int, logger *slog.Logger) *DownloadQueue {
 		queue: make(chan string, depth),
 		log:   logger,
 	}
+	ret.log.Info("starting video downloader", "queueDepth", depth, "workers", workers)
 
 	for idx := range workers {
 		go ret.processQueue(fmt.Sprintf("worker-%d", idx))
@@ -28,14 +29,15 @@ func NewDownloadQueue(workers, depth int, logger *slog.Logger) *DownloadQueue {
 	return &ret
 }
 
-func (dq *DownloadQueue) AddToQueue(videoID string) bool {
+func (dq *DownloadQueue) AddToQueue(videoID string) (bool, int) {
 	dq.log.With("operation", "AddToQueue", "videoId", videoID).Info("Added to queue")
 	dq.queue <- videoID
-	return true
+	return true, len(dq.queue)
 }
 
 func (dq *DownloadQueue) processQueue(workerID string) {
 	log := dq.log.With("worker_id", workerID, "operation", "processQueue")
+	log.Info("queue monitor started")
 	for videoID := range dq.queue {
 		if _, err := DownloadVideoWithFormat(dq.log, videoID, videoFormat); err != nil {
 			log.Error("Failed to download video", "videoId", videoID)
@@ -46,17 +48,21 @@ func (dq *DownloadQueue) processQueue(workerID string) {
 }
 
 var (
-	downloadQueue *DownloadQueue
-	videoFormat   string
+	downloadQueue       *DownloadQueue
+	videoFormat         string
+	downloadConcurrency int
+	queueDepth          int
 )
 
 func main() {
 	// Parse CLI flags
 	flag.StringVar(&videoFormat, "format", "mov", "Video format (mov or mkv)")
+	flag.IntVar(&downloadConcurrency, "downloadConcurrency", 1, "how many concurrent downloads to perform")
+	flag.IntVar(&queueDepth, "queueDepth", 10, "number of videos to queue before blocking the process")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	downloadQueue = NewDownloadQueue(1, 10, log.With("role", "downloader"))
+	downloadQueue = NewDownloadQueue(downloadConcurrency, queueDepth, log.With("role", "downloader"))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.
 			With("operation", "http",
@@ -86,7 +92,7 @@ func main() {
 		}
 		defer r.Body.Close()
 
-		var jsonData Api
+		var jsonData API
 		if err := json.Unmarshal(body, &jsonData); err != nil {
 			log.
 				With("operation", "http",
@@ -98,17 +104,12 @@ func main() {
 			return
 		}
 
-		log.With("operation", "http",
-			"method", r.Method,
-			"url", r.URL.Path,
-		).Info("Request received")
-
 		if jsonData.VideoID == "" {
 			http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
 			return
 		}
 
-		added := downloadQueue.AddToQueue(jsonData.VideoID)
+		added, currLen := downloadQueue.AddToQueue(jsonData.VideoID)
 		if !added {
 			log.With("operation", "http",
 				"method", r.Method,
@@ -121,6 +122,7 @@ func main() {
 			"method", r.Method,
 			"url", r.URL.Path,
 		).Info("Request processed", "videoId", jsonData.VideoID, "queueDepth", len(downloadQueue.queue))
+		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d", jsonData.VideoID, currLen)
 	})
 
 	log.Info("Starting server on port 3009...")
