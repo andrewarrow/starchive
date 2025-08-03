@@ -5,74 +5,47 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
-	"sync"
+	"os"
 )
 
 type DownloadQueue struct {
-	queue     []string
-	isRunning bool
-	mutex     sync.Mutex
+	queue chan string
+	log   *slog.Logger
 }
 
-func NewDownloadQueue() *DownloadQueue {
-	return &DownloadQueue{
-		queue:     make([]string, 0),
-		isRunning: false,
+func NewDownloadQueue(workers, depth int, logger *slog.Logger) *DownloadQueue {
+	ret := DownloadQueue{
+		queue: make(chan string, depth),
+		log:   logger,
 	}
+
+	for idx := range workers {
+		go ret.processQueue(fmt.Sprintf("worker-%d", idx))
+	}
+
+	return &ret
 }
 
 func (dq *DownloadQueue) AddToQueue(videoId string) bool {
-	dq.mutex.Lock()
-	defer dq.mutex.Unlock()
-	
-	// Check if video is already in queue
-	for _, id := range dq.queue {
-		if id == videoId {
-			fmt.Printf("Video %s is already in queue\n", videoId)
-			return false
-		}
-	}
-	
-	dq.queue = append(dq.queue, videoId)
-	fmt.Printf("Added video %s to queue. Queue length: %d\n", videoId, len(dq.queue))
-	
-	if !dq.isRunning {
-		dq.isRunning = true
-		go dq.processQueue()
-	}
-	
+	dq.log.With("operation", "AddToQueue", "videoId", videoId).Info("Added to queue")
+	dq.queue <- videoId
 	return true
 }
 
-func (dq *DownloadQueue) processQueue() {
+func (dq *DownloadQueue) processQueue(workerId string) {
+	log := dq.log.With("worker_id", workerId, "operation", "processQueue")
 	for {
-		dq.mutex.Lock()
-		if len(dq.queue) == 0 {
-			dq.isRunning = false
-			dq.mutex.Unlock()
-			fmt.Println("Queue is empty, stopping processor")
-			return
-		}
-		
-		videoId := dq.queue[0]
-		dq.queue = dq.queue[1:]
-		fmt.Printf("Processing video %s. Remaining in queue: %d\n", videoId, len(dq.queue))
-		dq.mutex.Unlock()
-		
-		_, err := DownloadVideoWithFormat(videoId, videoFormat)
-		if err != nil {
-			fmt.Printf("Error downloading video %s: %v\n", videoId, err)
-		} else {
-			fmt.Printf("Successfully downloaded video %s\n", videoId)
+		select {
+		case videoId := <-dq.queue:
+			if _, err := DownloadVideoWithFormat(videoId, videoFormat); err != nil {
+				log.Error("Failed to download video", "videoId", videoId)
+			} else {
+				log.Info("Successfully downloaded video", "videoId", videoId)
+			}
 		}
 	}
-}
-
-func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
-	dq.mutex.Lock()
-	defer dq.mutex.Unlock()
-	return len(dq.queue), dq.isRunning
 }
 
 var downloadQueue *DownloadQueue
@@ -82,11 +55,23 @@ func main() {
 	// Parse CLI flags
 	flag.StringVar(&videoFormat, "format", "mov", "Video format (mov or mkv)")
 	flag.Parse()
-	
-	downloadQueue = NewDownloadQueue()
+
+	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	downloadQueue = NewDownloadQueue(1, 10, log.With("role", "downloader"))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Request received:", r.Method, r.URL.Path)
-		fmt.Fprintf(w, "hello world")
+		log.
+			With("operation", "http",
+				"method", r.Method,
+				"url", r.URL.Path,
+			).Info("Request received")
+		if _, err := fmt.Fprintf(w, "hello world"); err != nil {
+			log.
+				With("operation", "http",
+					"method", r.Method,
+					"url", r.URL.Path,
+				).
+				Error("Failed to write response", "err", err)
+		}
 	})
 
 	http.HandleFunc("/youtube", func(w http.ResponseWriter, r *http.Request) {
@@ -104,12 +89,20 @@ func main() {
 
 		var jsonData map[string]interface{}
 		if err := json.Unmarshal(body, &jsonData); err != nil {
-			fmt.Printf("Invalid JSON received: %s\n", string(body))
+			log.
+				With("operation", "http",
+					"method", r.Method,
+					"url", r.URL.Path,
+				).
+				Error("Failed to unmarshal json", "err", err)
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
 
-		fmt.Printf("JSON received: %+v\n", jsonData)
+		log.With("operation", "http",
+			"method", r.Method,
+			"url", r.URL.Path,
+		).Info("Request received")
 
 		id, ok := jsonData["videoId"].(string)
 		if !ok {
@@ -119,14 +112,21 @@ func main() {
 
 		added := downloadQueue.AddToQueue(id)
 		if !added {
-			fmt.Fprintf(w, "Video %s is already in download queue", id)
+			log.With("operation", "http",
+				"method", r.Method,
+				"url", r.URL.Path,
+			).Error("Failed to add video", "videoId", id)
 			return
 		}
-		
-		queueLength, isRunning := downloadQueue.GetQueueStatus()
-		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
+
+		log.With("operation", "http",
+			"method", r.Method,
+			"url", r.URL.Path,
+		).Info("Request processed", "videoId", id, "queueDepth", len(downloadQueue.queue))
 	})
 
-	fmt.Println("Server starting on port 3009...")
-	http.ListenAndServe(":3009", nil)
+	log.Info("Starting server on port 3009...")
+	if err := http.ListenAndServe(":3009", nil); err != nil {
+		log.With("operation", "http").Error("Failed to start server", "err", err)
+	}
 }
