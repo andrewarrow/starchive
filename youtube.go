@@ -70,10 +70,7 @@ func DownloadSubtitles(log *slog.Logger, youtubeID string) error {
 			lastErr = err
 			if attempt < 50 {
 				// Exponential backoff: wait 2^(attempt-1) seconds, capped at 60 seconds
-				delay := time.Duration(1<<uint(attempt-1)) * time.Second
-				if delay > 60*time.Second {
-					delay = 60 * time.Second
-				}
+				delay := min(time.Duration(1<<uint(attempt-1))*time.Second, 60*time.Second)
 				log.Error(fmt.Sprintf("Subtitle download failed (attempt %d/50), retrying in %v", attempt, delay))
 				time.Sleep(delay)
 				continue

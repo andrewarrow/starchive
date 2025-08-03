@@ -28,28 +28,27 @@ func NewDownloadQueue(workers, depth int, logger *slog.Logger) *DownloadQueue {
 	return &ret
 }
 
-func (dq *DownloadQueue) AddToQueue(videoId string) bool {
-	dq.log.With("operation", "AddToQueue", "videoId", videoId).Info("Added to queue")
-	dq.queue <- videoId
+func (dq *DownloadQueue) AddToQueue(videoID string) bool {
+	dq.log.With("operation", "AddToQueue", "videoId", videoID).Info("Added to queue")
+	dq.queue <- videoID
 	return true
 }
 
-func (dq *DownloadQueue) processQueue(workerId string) {
-	log := dq.log.With("worker_id", workerId, "operation", "processQueue")
-	for {
-		select {
-		case videoId := <-dq.queue:
-			if _, err := DownloadVideoWithFormat(dq.log, videoId, videoFormat); err != nil {
-				log.Error("Failed to download video", "videoId", videoId)
-			} else {
-				log.Info("Successfully downloaded video", "videoId", videoId)
-			}
+func (dq *DownloadQueue) processQueue(workerID string) {
+	log := dq.log.With("worker_id", workerID, "operation", "processQueue")
+	for videoID := range dq.queue {
+		if _, err := DownloadVideoWithFormat(dq.log, videoID, videoFormat); err != nil {
+			log.Error("Failed to download video", "videoId", videoID)
+		} else {
+			log.Info("Successfully downloaded video", "videoId", videoID)
 		}
 	}
 }
 
-var downloadQueue *DownloadQueue
-var videoFormat string
+var (
+	downloadQueue *DownloadQueue
+	videoFormat   string
+)
 
 func main() {
 	// Parse CLI flags
