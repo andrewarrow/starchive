@@ -103,24 +103,24 @@ func main() {
 			"url", r.URL.Path,
 		).Info("Request received")
 
-		if jsonData.VideoId == "" {
+		if jsonData.VideoID == "" {
 			http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
 			return
 		}
 
-		added := downloadQueue.AddToQueue(jsonData.VideoId)
+		added := downloadQueue.AddToQueue(jsonData.VideoID)
 		if !added {
 			log.With("operation", "http",
 				"method", r.Method,
 				"url", r.URL.Path,
-			).Error("Failed to add video", "videoId", jsonData.VideoId)
+			).Error("Failed to add video", "videoId", jsonData.VideoID)
 			return
 		}
 
 		log.With("operation", "http",
 			"method", r.Method,
 			"url", r.URL.Path,
-		).Info("Request processed", "videoId", jsonData.VideoId, "queueDepth", len(downloadQueue.queue))
+		).Info("Request processed", "videoId", jsonData.VideoID, "queueDepth", len(downloadQueue.queue))
 	})
 
 	log.Info("Starting server on port 3009...")

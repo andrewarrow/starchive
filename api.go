@@ -1,5 +1,5 @@
 package main
 
 type Api struct {
-	VideoId string `json:"videoId:omitempty"`
+	VideoID string `json:"videoId:omitempty"`
 }
