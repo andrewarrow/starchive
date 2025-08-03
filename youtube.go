@@ -19,6 +19,20 @@ func DownloadVideo(youtubeID string) (string, error) {
 func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 	outputFile := youtubeID
 
+	// Check if file already exists as .mov or .mkv
+	movFile := fmt.Sprintf("./data/%s.mov", youtubeID)
+	mkvFile := fmt.Sprintf("./data/%s.mkv", youtubeID)
+	
+	if _, err := os.Stat(movFile); err == nil {
+		fmt.Printf("Video %s.mov already exists, skipping download\n", youtubeID)
+		return outputFile, nil
+	}
+	
+	if _, err := os.Stat(mkvFile); err == nil {
+		fmt.Printf("Video %s.mkv already exists, skipping download\n", youtubeID)
+		return outputFile, nil
+	}
+
 	var ffmpegCommand string
 	
 	if format == "mkv" {
