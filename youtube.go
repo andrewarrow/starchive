@@ -45,6 +45,8 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 		ffmpegCommand = fmt.Sprintf("ffmpeg -i {} -c:v h264_videotoolbox -b:v 10000k ./data/%s.mov && rm {}", youtubeID)
 	}
 
+	DownloadSubtitles(youtubeID)
+
 	// Use yt-dlp with ffmpeg post-processing
 	cmd := exec.Command("yt-dlp",
 		"-o", "./data/"+outputFile,
@@ -56,8 +58,6 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("error downloading and converting YouTube video: %v", err)
 	}
-
-	DownloadSubtitles(youtubeID)
 
 	return outputFile, nil
 }
