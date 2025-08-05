@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,11 +13,8 @@ func IsYouTubeID(input string) bool {
 	return len(input) == 11 && !strings.Contains(input, ".")
 }
 
-func DownloadVideo(youtubeID string) (string, error) {
-	return DownloadVideoWithFormat(youtubeID, "mov")
-}
-
-func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
+func DownloadVideoWithFormat(log *slog.Logger, youtubeID string, format string) (string, error) {
+	log = log.With("videoId", youtubeID, "format", format, "operation", "DownloadVideoWithFormat")
 	outputFile := youtubeID
 
 	// Check if file already exists as .mov or .mkv
@@ -36,11 +34,11 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 	var ffmpegCommand string
 
 	if format == "mkv" {
-		fmt.Printf("Detected YouTube ID: %s, downloading and converting to HEVC 265 MKV...\n", youtubeID)
+		log.Info("downloading and converting to HEVC 265 MKV")
 		// HEVC 265 encoding for MKV
 		ffmpegCommand = fmt.Sprintf("ffmpeg -i {} -c:v libx265 -preset medium -crf 23 -c:a copy ./data/%s.mkv && rm {}", youtubeID)
 	} else {
-		fmt.Printf("Detected YouTube ID: %s, downloading and converting to MOV...\n", youtubeID)
+		log.Info("downloading and converting to MOV...")
 		// Default H.264 encoding for MOV
 		ffmpegCommand = fmt.Sprintf("ffmpeg -i {} -c:v h264_videotoolbox -b:v 10000k ./data/%s.mov && rm {}", youtubeID)
 	}
@@ -56,22 +54,25 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		log.With("outputFile", outputFile).With("err", err).Error("Download video failed")
 		return "", fmt.Errorf("error downloading and converting YouTube video: %v", err)
 	}
 
-	return outputFile, nil
+	log.With("outputFile", outputFile).Info("Downloaded video successfully")
+	return outputFile, DownloadSubtitles(log, youtubeID)
 }
 
-func DownloadSubtitles(youtubeID string) error {
-	vttFile := youtubeID + ".en.vtt"
+func DownloadSubtitles(log *slog.Logger, youtubeID string) error {
+	vttFile := "./data/" + youtubeID + ".en.vtt"
+	log = log.With("youtubeID", youtubeID, "file", vttFile, "operation", "DownloadSubtitles")
 
 	// Check if .en.vtt file already exists
 	if _, err := os.Stat(vttFile); err == nil {
-		fmt.Printf("Subtitles file %s already exists, skipping download\n", vttFile)
+		log.Warn("Subtitles file already exists, skipping download")
 		return nil
 	}
 
-	fmt.Printf("Downloading subtitles...\n")
+	log.Debug("Downloading subtitles...")
 	youtubeURL := "https://www.youtube.com/watch?v=" + youtubeID
 
 	// Retry with exponential backoff up to 50 times
@@ -85,11 +86,8 @@ func DownloadSubtitles(youtubeID string) error {
 			lastErr = err
 			if attempt < 50 {
 				// Exponential backoff: wait 2^(attempt-1) seconds, capped at 60 seconds
-				delay := time.Duration(1<<uint(attempt-1)) * time.Second
-				if delay > 60*time.Second {
-					delay = 60 * time.Second
-				}
-				fmt.Printf("Subtitle download failed (attempt %d/50), retrying in %v...\n", attempt, delay)
+				delay := min(time.Duration(1<<uint(attempt-1))*time.Second, 60*time.Second)
+				log.Error(fmt.Sprintf("Subtitle download failed (attempt %d/50), retrying in %v", attempt, delay))
 				time.Sleep(delay)
 				continue
 			}
