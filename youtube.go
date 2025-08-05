@@ -22,19 +22,19 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 	// Check if file already exists as .mov or .mkv
 	movFile := fmt.Sprintf("./data/%s.mov", youtubeID)
 	mkvFile := fmt.Sprintf("./data/%s.mkv", youtubeID)
-	
+
 	if _, err := os.Stat(movFile); err == nil {
 		fmt.Printf("Video %s.mov already exists, skipping download\n", youtubeID)
 		return outputFile, nil
 	}
-	
+
 	if _, err := os.Stat(mkvFile); err == nil {
 		fmt.Printf("Video %s.mkv already exists, skipping download\n", youtubeID)
 		return outputFile, nil
 	}
 
 	var ffmpegCommand string
-	
+
 	if format == "mkv" {
 		fmt.Printf("Detected YouTube ID: %s, downloading and converting to HEVC 265 MKV...\n", youtubeID)
 		// HEVC 265 encoding for MKV
@@ -56,6 +56,8 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("error downloading and converting YouTube video: %v", err)
 	}
+
+	DownloadSubtitles(youtubeID)
 
 	return outputFile, nil
 }
@@ -92,7 +94,11 @@ func DownloadSubtitles(youtubeID string) error {
 				continue
 			}
 		} else {
-			// Success
+			// Success - parse the VTT file
+			vttPath := fmt.Sprintf("./data/%s.en.vtt", youtubeID)
+			if err := parseVttFile(vttPath, youtubeID); err != nil {
+				fmt.Printf("Warning: failed to parse VTT file: %v\n", err)
+			}
 			return nil
 		}
 	}
