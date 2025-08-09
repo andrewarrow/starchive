@@ -17,7 +17,7 @@ func DownloadVideo(youtubeID string) (string, error) {
 }
 
 func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
-	outputFile := youtubeID
+    outputFile := youtubeID
 
 	// Check if file already exists as .mov or .mkv
 	movFile := fmt.Sprintf("./data/%s.mov", youtubeID)
@@ -45,7 +45,8 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 		ffmpegCommand = fmt.Sprintf("ffmpeg -i {} -c:v h264_videotoolbox -b:v 10000k ./data/%s.mov && rm {}", youtubeID)
 	}
 
-	DownloadSubtitles(youtubeID)
+    DownloadSubtitles(youtubeID)
+    DownloadThumbnail(youtubeID)
 
 	// Use yt-dlp with ffmpeg post-processing
 	cmd := exec.Command("yt-dlp",
@@ -104,4 +105,32 @@ func DownloadSubtitles(youtubeID string) error {
 	}
 
 	return fmt.Errorf("could not download subtitles after 50 attempts: %v", lastErr)
+}
+
+func DownloadThumbnail(youtubeID string) error {
+    jpgPath := fmt.Sprintf("./data/%s.jpg", youtubeID)
+
+    if _, err := os.Stat(jpgPath); err == nil {
+        fmt.Printf("Thumbnail %s already exists, skipping download\n", jpgPath)
+        return nil
+    }
+
+    fmt.Printf("Downloading thumbnail...\n")
+
+    cmd := exec.Command(
+        "yt-dlp",
+        "-o", "./data/"+youtubeID,
+        "--skip-download",
+        "--write-thumbnail",
+        "--convert-thumbnails", "jpg",
+        youtubeID,
+    )
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("error downloading thumbnail: %v", err)
+    }
+
+    return nil
 }
