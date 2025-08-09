@@ -77,10 +77,12 @@ func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
 
 var downloadQueue *DownloadQueue
 var videoFormat string
+var downloadVideos bool
 
 func main() {
 	// Parse CLI flags
-	flag.StringVar(&videoFormat, "format", "mov", "Video format (mov or mkv)")
+    flag.StringVar(&videoFormat, "format", "mov", "Video format (mov or mkv)")
+    flag.BoolVar(&downloadVideos, "download-videos", true, "Download full videos; if false, only subtitles and thumbnails")
 	flag.Parse()
 	
 	downloadQueue = NewDownloadQueue()

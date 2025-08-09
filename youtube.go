@@ -19,6 +19,18 @@ func DownloadVideo(youtubeID string) (string, error) {
 func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
     outputFile := youtubeID
 
+    // If configured to not download videos, only fetch subtitles and thumbnails.
+    if !downloadVideos {
+        fmt.Printf("download-videos=false; only downloading subtitles and thumbnail for %s\n", youtubeID)
+        if err := DownloadSubtitles(youtubeID); err != nil {
+            fmt.Printf("Error downloading subtitles for %s: %v\n", youtubeID, err)
+        }
+        if err := DownloadThumbnail(youtubeID); err != nil {
+            fmt.Printf("Error downloading thumbnail for %s: %v\n", youtubeID, err)
+        }
+        return outputFile, nil
+    }
+
 	// Check if file already exists as .mov or .mkv
 	movFile := fmt.Sprintf("./data/%s.mov", youtubeID)
 	mkvFile := fmt.Sprintf("./data/%s.mkv", youtubeID)

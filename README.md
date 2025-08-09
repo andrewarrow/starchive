@@ -31,6 +31,11 @@ A browser extension and local backend system that automatically archives YouTube
 2. Load the Firefox extension from the `firefox/` directory
 3. Visit any YouTube video page to automatically trigger archiving
 
+### Flags
+
+- `--format` (default `mov`): Choose `mov` or `mkv` for converted output.
+- `--download-videos` (default `true`): When set to `false`, the backend skips downloading full videos and only fetches subtitles and thumbnails.
+
 ## Dependencies
 
 - **yt-dlp**: For downloading YouTube videos
