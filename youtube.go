@@ -28,6 +28,9 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
         if err := DownloadThumbnail(youtubeID); err != nil {
             fmt.Printf("Error downloading thumbnail for %s: %v\n", youtubeID, err)
         }
+        if err := DownloadJSON(youtubeID); err != nil {
+            fmt.Printf("Error downloading JSON metadata for %s: %v\n", youtubeID, err)
+        }
         return outputFile, nil
     }
 
@@ -59,6 +62,7 @@ func DownloadVideoWithFormat(youtubeID string, format string) (string, error) {
 
     DownloadSubtitles(youtubeID)
     DownloadThumbnail(youtubeID)
+    DownloadJSON(youtubeID)
 
 	// Use yt-dlp with ffmpeg post-processing
 	cmd := exec.Command("yt-dlp",
@@ -142,6 +146,42 @@ func DownloadThumbnail(youtubeID string) error {
 
     if err := cmd.Run(); err != nil {
         return fmt.Errorf("error downloading thumbnail: %v", err)
+    }
+
+    return nil
+}
+
+func DownloadJSON(youtubeID string) error {
+    jsonPath := fmt.Sprintf("./data/%s.json", youtubeID)
+
+    if _, err := os.Stat(jsonPath); err == nil {
+        fmt.Printf("JSON metadata %s already exists, skipping download\n", jsonPath)
+        return nil
+    }
+
+    fmt.Printf("Downloading JSON metadata...\n")
+
+    cmd := exec.Command(
+        "yt-dlp",
+        "-j",
+        "--no-warnings",
+        youtubeID,
+    )
+
+    output, err := cmd.Output()
+    if err != nil {
+        return fmt.Errorf("error downloading JSON metadata: %v", err)
+    }
+
+    file, err := os.Create(jsonPath)
+    if err != nil {
+        return fmt.Errorf("error creating JSON file: %v", err)
+    }
+    defer file.Close()
+
+    _, err = file.Write(output)
+    if err != nil {
+        return fmt.Errorf("error writing JSON file: %v", err)
     }
 
     return nil
