@@ -25,7 +25,7 @@ func NewDownloadQueue() *DownloadQueue {
 func (dq *DownloadQueue) AddToQueue(videoId string) bool {
 	dq.mutex.Lock()
 	defer dq.mutex.Unlock()
-	
+
 	// Check if video is already in queue
 	for _, id := range dq.queue {
 		if id == videoId {
@@ -33,15 +33,15 @@ func (dq *DownloadQueue) AddToQueue(videoId string) bool {
 			return false
 		}
 	}
-	
+
 	dq.queue = append(dq.queue, videoId)
 	fmt.Printf("Added video %s to queue. Queue length: %d\n", videoId, len(dq.queue))
-	
+
 	if !dq.isRunning {
 		dq.isRunning = true
 		go dq.processQueue()
 	}
-	
+
 	return true
 }
 
@@ -54,13 +54,13 @@ func (dq *DownloadQueue) processQueue() {
 			fmt.Println("Queue is empty, stopping processor")
 			return
 		}
-		
+
 		videoId := dq.queue[0]
 		dq.queue = dq.queue[1:]
 		fmt.Printf("Processing video %s. Remaining in queue: %d\n", videoId, len(dq.queue))
 		dq.mutex.Unlock()
-		
-		_, err := DownloadVideoWithFormat(videoId, videoFormat)
+
+		_, err := DownloadVideo(videoId)
 		if err != nil {
 			fmt.Printf("Error downloading video %s: %v\n", videoId, err)
 		} else {
@@ -76,15 +76,13 @@ func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
 }
 
 var downloadQueue *DownloadQueue
-var videoFormat string
 var downloadVideos bool
 
 func main() {
 	// Parse CLI flags
-    flag.StringVar(&videoFormat, "format", "mov", "Video format (mov or mkv)")
-    flag.BoolVar(&downloadVideos, "download-videos", true, "Download full videos; if false, only subtitles and thumbnails")
+	flag.BoolVar(&downloadVideos, "download-videos", true, "Download full videos; if false, only subtitles and thumbnails")
 	flag.Parse()
-	
+
 	downloadQueue = NewDownloadQueue()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Request received:", r.Method, r.URL.Path)
@@ -124,7 +122,7 @@ func main() {
 			fmt.Fprintf(w, "Video %s is already in download queue", id)
 			return
 		}
-		
+
 		queueLength, isRunning := downloadQueue.GetQueueStatus()
 		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
 	})
