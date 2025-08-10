@@ -32,7 +32,7 @@ func DownloadVideo(youtubeID string) (string, error) {
 		"-o", "./data/%(id)s.%(ext)s",
 		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
 		"--merge-output-format", "mp4",
-		youtubeID)
+		"https://www.youtube.com/watch?v="+youtubeID)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
