@@ -17,6 +17,10 @@ func handleLsCommand() {
 	}
 	defer db.Close()
 	
+	// Print header
+	fmt.Printf("%-15s %-60s %-1s %-10s\n", "ID", "Title", "V", "BPM/Key")
+	fmt.Printf("%-15s %-60s %-1s %-10s\n", "---", "-----", "-", "-------")
+	
 	entries, err := os.ReadDir("./data")
 	if err != nil {
 		fmt.Println("Error reading ./data:", err)
@@ -30,16 +34,16 @@ func handleLsCommand() {
 			
 			// Try to get from cache first
 			if cachedMetadata, found := getCachedMetadata(db, id); found {
-				vocalStatus := "NO"
+				vocalStatus := "N"
 				if cachedMetadata.VocalDone {
-					vocalStatus = "YES"
+					vocalStatus = "Y"
 				}
 				bmpInfo := ""
 				if cachedMetadata.BPM != nil && cachedMetadata.Key != nil {
-					bmpInfo = fmt.Sprintf(" [BPM: %.1f/%s]", 
+					bmpInfo = fmt.Sprintf("%.1f/%s", 
 						*cachedMetadata.BPM, *cachedMetadata.Key)
 				}
-				fmt.Printf("%s\t%s\t[Vocal: %s]%s\n", cachedMetadata.ID, cachedMetadata.Title, vocalStatus, bmpInfo)
+				fmt.Printf("%-15s %-60s %-1s %-10s\n", cachedMetadata.ID, truncateString(cachedMetadata.Title, 60), vocalStatus, bmpInfo)
 				continue
 			}
 			
@@ -60,16 +64,16 @@ func handleLsCommand() {
 				metadata = updatedMetadata
 			}
 			
-			vocalStatus := "NO"
+			vocalStatus := "N"
 			if metadata.VocalDone {
-				vocalStatus = "YES"
+				vocalStatus = "Y"
 			}
 			bmpInfo := ""
 			if metadata.BPM != nil && metadata.Key != nil {
-				bmpInfo = fmt.Sprintf(" [BPM: %.1f/%s]", 
+				bmpInfo = fmt.Sprintf("%.1f/%s", 
 					*metadata.BPM, *metadata.Key)
 			}
-			fmt.Printf("%s\t%s\t[Vocal: %s]%s\n", metadata.ID, metadata.Title, vocalStatus, bmpInfo)
+			fmt.Printf("%-15s %-60s %-1s %-10s\n", metadata.ID, truncateString(metadata.Title, 60), vocalStatus, bmpInfo)
 		}
 	}
 }
@@ -177,4 +181,14 @@ func handleBpmCommand() {
 	} else {
 		fmt.Printf("\nBPM data stored in database for %s\n", id)
 	}
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
 }
