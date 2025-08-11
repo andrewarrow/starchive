@@ -27,15 +27,8 @@ func handleLsCommand() {
 			id := strings.TrimSuffix(e.Name(), ".json")
 			filePath := "./data/" + e.Name()
 			
-			// Get file modification time
-			fileInfo, err := e.Info()
-			if err != nil {
-				fmt.Printf("%s\t<error getting file info>\n", id)
-				continue
-			}
-			
 			// Try to get from cache first
-			if cachedMetadata, found := getCachedMetadata(db, id, fileInfo.ModTime()); found {
+			if cachedMetadata, found := getCachedMetadata(db, id); found {
 				vocalStatus := "NO"
 				if cachedMetadata.VocalDone {
 					vocalStatus = "YES"
@@ -54,6 +47,11 @@ func handleLsCommand() {
 			// Cache the metadata
 			if err := cacheMetadata(db, *metadata); err != nil {
 				fmt.Printf("Warning: failed to cache metadata for %s: %v\n", id, err)
+			}
+			
+			// Get the updated metadata with correct vocal_done value
+			if updatedMetadata, found := getCachedMetadata(db, id); found {
+				metadata = updatedMetadata
 			}
 			
 			vocalStatus := "NO"

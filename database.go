@@ -50,32 +50,44 @@ func initDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
-func getCachedMetadata(db *sql.DB, id string, fileModTime time.Time) (*VideoMetadata, bool) {
+func getCachedMetadata(db *sql.DB, id string) (*VideoMetadata, bool) {
 	var metadata VideoMetadata
 	var lastModified int64
+	var vocalDoneInt int
 	
 	err := db.QueryRow("SELECT id, title, last_modified, vocal_done FROM video_metadata WHERE id = ?", id).
-		Scan(&metadata.ID, &metadata.Title, &lastModified, &metadata.VocalDone)
+		Scan(&metadata.ID, &metadata.Title, &lastModified, &vocalDoneInt)
 	
 	if err != nil {
 		return nil, false
 	}
 	
 	metadata.LastModified = time.Unix(lastModified, 0)
+	metadata.VocalDone = vocalDoneInt == 1
 	
-	// Check if cached data is still valid (file hasn't been modified)
-	if metadata.LastModified.Equal(fileModTime) || metadata.LastModified.After(fileModTime) {
-		return &metadata, true
-	}
-	
-	return nil, false
+	return &metadata, true
 }
 
 func cacheMetadata(db *sql.DB, metadata VideoMetadata) error {
-	_, err := db.Exec(`
+	// Check if record exists and preserve vocal_done value
+	var existingVocalDoneInt int
+	err := db.QueryRow("SELECT vocal_done FROM video_metadata WHERE id = ?", metadata.ID).Scan(&existingVocalDoneInt)
+	
+	// If record exists, preserve the existing vocal_done value
+	vocalDone := metadata.VocalDone
+	if err == nil {
+		vocalDone = existingVocalDoneInt == 1
+	}
+	
+	vocalDoneInt := 0
+	if vocalDone {
+		vocalDoneInt = 1
+	}
+	
+	_, err = db.Exec(`
 		INSERT OR REPLACE INTO video_metadata (id, title, last_modified, vocal_done) 
 		VALUES (?, ?, ?, ?)`,
-		metadata.ID, metadata.Title, metadata.LastModified.Unix(), metadata.VocalDone)
+		metadata.ID, metadata.Title, metadata.LastModified.Unix(), vocalDoneInt)
 	return err
 }
 
