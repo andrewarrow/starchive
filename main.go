@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,8 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 type DownloadQueue struct {
@@ -80,6 +85,101 @@ func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
 
 var downloadQueue *DownloadQueue
 var downloadVideos bool
+
+type VideoMetadata struct {
+	ID           string
+	Title        string
+	LastModified time.Time
+}
+
+func initDatabase() (*sql.DB, error) {
+	dbPath := "./data/starchive.db"
+	
+	// Ensure data directory exists
+	if err := os.MkdirAll("./data", 0755); err != nil {
+		return nil, fmt.Errorf("failed to create data directory: %v", err)
+	}
+	
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %v", err)
+	}
+	
+	// Create table if it doesn't exist
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS video_metadata (
+		id TEXT PRIMARY KEY,
+		title TEXT NOT NULL,
+		last_modified INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_last_modified ON video_metadata(last_modified);
+	`
+	
+	if _, err := db.Exec(createTableSQL); err != nil {
+		return nil, fmt.Errorf("failed to create table: %v", err)
+	}
+	
+	return db, nil
+}
+
+func getCachedMetadata(db *sql.DB, id string, fileModTime time.Time) (*VideoMetadata, bool) {
+	var metadata VideoMetadata
+	var lastModified int64
+	
+	err := db.QueryRow("SELECT id, title, last_modified FROM video_metadata WHERE id = ?", id).
+		Scan(&metadata.ID, &metadata.Title, &lastModified)
+	
+	if err != nil {
+		return nil, false
+	}
+	
+	metadata.LastModified = time.Unix(lastModified, 0)
+	
+	// Check if cached data is still valid (file hasn't been modified)
+	if metadata.LastModified.Equal(fileModTime) || metadata.LastModified.After(fileModTime) {
+		return &metadata, true
+	}
+	
+	return nil, false
+}
+
+func cacheMetadata(db *sql.DB, metadata VideoMetadata) error {
+	_, err := db.Exec(`
+		INSERT OR REPLACE INTO video_metadata (id, title, last_modified) 
+		VALUES (?, ?, ?)`,
+		metadata.ID, metadata.Title, metadata.LastModified.Unix())
+	return err
+}
+
+func parseJSONMetadata(filePath string) (*VideoMetadata, error) {
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(fileContent, &jsonData); err != nil {
+		return nil, err
+	}
+	
+	id := strings.TrimSuffix(filepath.Base(filePath), ".json")
+	title, ok := jsonData["title"].(string)
+	if !ok {
+		title = "<no title>"
+	}
+	
+	// Get file modification time
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return &VideoMetadata{
+		ID:           id,
+		Title:        title,
+		LastModified: fileInfo.ModTime(),
+	}, nil
+}
 
 func writeCookiesFile(cookiesStr string) error {
 	file, err := os.Create("./cookies.txt")
@@ -182,6 +282,14 @@ func main() {
 			os.Exit(1)
 		}
 	case "ls":
+		// Initialize database
+		db, err := initDatabase()
+		if err != nil {
+			fmt.Printf("Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+		
 		entries, err := os.ReadDir("./data")
 		if err != nil {
 			fmt.Println("Error reading ./data:", err)
@@ -191,26 +299,34 @@ func main() {
 		for _, e := range entries {
 			if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
 				id := strings.TrimSuffix(e.Name(), ".json")
-				
 				filePath := "./data/" + e.Name()
-				fileContent, err := os.ReadFile(filePath)
+				
+				// Get file modification time
+				fileInfo, err := e.Info()
 				if err != nil {
-					fmt.Printf("%s\t<error reading file>\n", id)
+					fmt.Printf("%s\t<error getting file info>\n", id)
 					continue
 				}
 				
-				var jsonData map[string]interface{}
-				if err := json.Unmarshal(fileContent, &jsonData); err != nil {
-					fmt.Printf("%s\t<error parsing JSON>\n", id)
+				// Try to get from cache first
+				if cachedMetadata, found := getCachedMetadata(db, id, fileInfo.ModTime()); found {
+					fmt.Printf("%s\t%s\n", cachedMetadata.ID, cachedMetadata.Title)
 					continue
 				}
 				
-				title, ok := jsonData["title"].(string)
-				if !ok {
-					title = "<no title>"
+				// Parse JSON file if not in cache or cache is stale
+				metadata, err := parseJSONMetadata(filePath)
+				if err != nil {
+					fmt.Printf("%s\t<error parsing file: %v>\n", id, err)
+					continue
 				}
 				
-				fmt.Printf("%s\t%s\n", id, title)
+				// Cache the metadata
+				if err := cacheMetadata(db, *metadata); err != nil {
+					fmt.Printf("Warning: failed to cache metadata for %s: %v\n", id, err)
+				}
+				
+				fmt.Printf("%s\t%s\n", metadata.ID, metadata.Title)
 			}
 		}
 	case "vocal", "vocals":
