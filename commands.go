@@ -111,3 +111,49 @@ func handleVocalCommand() {
 		fmt.Printf("Marked %s as vocal done in database\n", id)
 	}
 }
+
+func handleBpmCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive bpm <id>")
+		fmt.Println("Example: starchive bpm Oa_RSwwpPaA")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	vocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+	instrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+
+	// Check if both files exist
+	if _, err := os.Stat(vocalPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Vocal file %s does not exist\n", vocalPath)
+		os.Exit(1)
+	}
+	if _, err := os.Stat(instrumentalPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Instrumental file %s does not exist\n", instrumentalPath)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Analyzing BPM for %s...\n", id)
+	
+	// Run BPM analysis on vocal track
+	fmt.Println("\n=== Vocal Track Analysis ===")
+	vocalCmd := exec.Command("python3", "bpm/beats_per_min.py", vocalPath)
+	vocalOutput, err := vocalCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error analyzing vocal track: %v\n", err)
+		fmt.Printf("Output: %s\n", string(vocalOutput))
+	} else {
+		fmt.Printf("%s\n", string(vocalOutput))
+	}
+
+	// Run BPM analysis on instrumental track
+	fmt.Println("\n=== Instrumental Track Analysis ===")
+	instrumentalCmd := exec.Command("python3", "bpm/beats_per_min.py", instrumentalPath)
+	instrumentalOutput, err := instrumentalCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error analyzing instrumental track: %v\n", err)
+		fmt.Printf("Output: %s\n", string(instrumentalOutput))
+	} else {
+		fmt.Printf("%s\n", string(instrumentalOutput))
+	}
+}
