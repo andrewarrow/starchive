@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 type DownloadQueue struct {
@@ -158,5 +159,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	select {}
+	time.Sleep(time.Hour * 24)
 }
