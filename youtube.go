@@ -160,7 +160,7 @@ func DownloadJSON(youtubeID string) error {
 		"yt-dlp",
 		"-j",
 		"--no-warnings",
-		youtubeID,
+		"https://www.youtube.com/watch?v="+youtubeID,
 	)
 
 	output, err := cmd.Output()
