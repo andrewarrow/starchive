@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 )
@@ -109,7 +110,7 @@ func writeCookiesFile(cookiesStr string) error {
 func main() {
 	// Simple subcommand dispatch: first arg is the command
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run    Start the server (default features)\n  ls     List files in ./data")
+		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run     Start the server (default features)\n  ls      List files in ./data\n  vocal   Extract vocals from audio file using audio-separator")
 		os.Exit(1)
 	}
 
@@ -212,9 +213,42 @@ func main() {
 				fmt.Printf("%s\t%s\n", id, title)
 			}
 		}
+	case "vocal", "vocals":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: starchive vocal <id>")
+			fmt.Println("Example: starchive vocal abc123")
+			os.Exit(1)
+		}
+
+		id := os.Args[2]
+		inputPath := fmt.Sprintf("./data/%s.wav", id)
+
+		// Check if input file exists
+		if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+			fmt.Printf("Error: Input file %s does not exist\n", inputPath)
+			os.Exit(1)
+		}
+
+		// Run audio-separator command
+		cmd := exec.Command("audio-separator", inputPath,
+			"--output_dir", "./data/",
+			"--model_filename", "UVR_MDXNET_Main.onnx",
+			"--output_format", "wav")
+
+		fmt.Printf("Running: %s\n", cmd.String())
+		
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Error running audio-separator: %v\n", err)
+			fmt.Printf("Output: %s\n", string(output))
+			os.Exit(1)
+		}
+
+		fmt.Printf("Successfully separated vocals for %s\n", id)
+		fmt.Printf("Output: %s\n", string(output))
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
-		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run    Start the server (default features)\n  ls     List files in ./data")
+		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run     Start the server (default features)\n  ls      List files in ./data\n  vocal   Extract vocals from audio file using audio-separator")
 		os.Exit(1)
 	}
 }
