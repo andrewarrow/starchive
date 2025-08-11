@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -33,7 +34,13 @@ func handleLsCommand() {
 				if cachedMetadata.VocalDone {
 					vocalStatus = "YES"
 				}
-				fmt.Printf("%s\t%s\t[Vocal: %s]\n", cachedMetadata.ID, cachedMetadata.Title, vocalStatus)
+				bmpInfo := ""
+				if cachedMetadata.VocalBPM != nil && cachedMetadata.InstrumentalBPM != nil {
+					bmpInfo = fmt.Sprintf(" [BPM: V:%.1f/%s I:%.1f/%s]", 
+						*cachedMetadata.VocalBPM, *cachedMetadata.VocalKey,
+						*cachedMetadata.InstrumentalBPM, *cachedMetadata.InstrumentalKey)
+				}
+				fmt.Printf("%s\t%s\t[Vocal: %s]%s\n", cachedMetadata.ID, cachedMetadata.Title, vocalStatus, bmpInfo)
 				continue
 			}
 			
@@ -58,7 +65,13 @@ func handleLsCommand() {
 			if metadata.VocalDone {
 				vocalStatus = "YES"
 			}
-			fmt.Printf("%s\t%s\t[Vocal: %s]\n", metadata.ID, metadata.Title, vocalStatus)
+			bmpInfo := ""
+			if metadata.VocalBPM != nil && metadata.InstrumentalBPM != nil {
+				bmpInfo = fmt.Sprintf(" [BPM: V:%.1f/%s I:%.1f/%s]", 
+					*metadata.VocalBPM, *metadata.VocalKey,
+					*metadata.InstrumentalBPM, *metadata.InstrumentalKey)
+			}
+			fmt.Printf("%s\t%s\t[Vocal: %s]%s\n", metadata.ID, metadata.Title, vocalStatus, bmpInfo)
 		}
 	}
 }
@@ -142,8 +155,16 @@ func handleBpmCommand() {
 	if err != nil {
 		fmt.Printf("Error analyzing vocal track: %v\n", err)
 		fmt.Printf("Output: %s\n", string(vocalOutput))
-	} else {
-		fmt.Printf("%s\n", string(vocalOutput))
+		os.Exit(1)
+	}
+	
+	fmt.Printf("%s\n", string(vocalOutput))
+	
+	// Parse vocal track JSON
+	var vocalData map[string]interface{}
+	if err := json.Unmarshal(vocalOutput, &vocalData); err != nil {
+		fmt.Printf("Error parsing vocal track JSON: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Run BPM analysis on instrumental track
@@ -153,7 +174,34 @@ func handleBpmCommand() {
 	if err != nil {
 		fmt.Printf("Error analyzing instrumental track: %v\n", err)
 		fmt.Printf("Output: %s\n", string(instrumentalOutput))
+		os.Exit(1)
+	}
+	
+	fmt.Printf("%s\n", string(instrumentalOutput))
+	
+	// Parse instrumental track JSON
+	var instrumentalData map[string]interface{}
+	if err := json.Unmarshal(instrumentalOutput, &instrumentalData); err != nil {
+		fmt.Printf("Error parsing instrumental track JSON: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Store results in database
+	db, err := initDatabase()
+	if err != nil {
+		fmt.Printf("Warning: Could not initialize database to store BPM data: %v\n", err)
+		return
+	}
+	defer db.Close()
+
+	vocalBPM := vocalData["bpm"].(float64)
+	vocalKey := vocalData["key"].(string)
+	instrumentalBPM := instrumentalData["bpm"].(float64)
+	instrumentalKey := instrumentalData["key"].(string)
+
+	if err := storeBPMData(db, id, vocalBPM, vocalKey, instrumentalBPM, instrumentalKey); err != nil {
+		fmt.Printf("Warning: Could not store BPM data in database: %v\n", err)
 	} else {
-		fmt.Printf("%s\n", string(instrumentalOutput))
+		fmt.Printf("\nBPM data stored in database for %s\n", id)
 	}
 }
