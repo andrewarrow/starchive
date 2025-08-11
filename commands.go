@@ -35,10 +35,9 @@ func handleLsCommand() {
 					vocalStatus = "YES"
 				}
 				bmpInfo := ""
-				if cachedMetadata.VocalBPM != nil && cachedMetadata.InstrumentalBPM != nil {
-					bmpInfo = fmt.Sprintf(" [BPM: V:%.1f/%s I:%.1f/%s]", 
-						*cachedMetadata.VocalBPM, *cachedMetadata.VocalKey,
-						*cachedMetadata.InstrumentalBPM, *cachedMetadata.InstrumentalKey)
+				if cachedMetadata.BPM != nil && cachedMetadata.Key != nil {
+					bmpInfo = fmt.Sprintf(" [BPM: %.1f/%s]", 
+						*cachedMetadata.BPM, *cachedMetadata.Key)
 				}
 				fmt.Printf("%s\t%s\t[Vocal: %s]%s\n", cachedMetadata.ID, cachedMetadata.Title, vocalStatus, bmpInfo)
 				continue
@@ -66,10 +65,9 @@ func handleLsCommand() {
 				vocalStatus = "YES"
 			}
 			bmpInfo := ""
-			if metadata.VocalBPM != nil && metadata.InstrumentalBPM != nil {
-				bmpInfo = fmt.Sprintf(" [BPM: V:%.1f/%s I:%.1f/%s]", 
-					*metadata.VocalBPM, *metadata.VocalKey,
-					*metadata.InstrumentalBPM, *metadata.InstrumentalKey)
+			if metadata.BPM != nil && metadata.Key != nil {
+				bmpInfo = fmt.Sprintf(" [BPM: %.1f/%s]", 
+					*metadata.BPM, *metadata.Key)
 			}
 			fmt.Printf("%s\t%s\t[Vocal: %s]%s\n", metadata.ID, metadata.Title, vocalStatus, bmpInfo)
 		}
@@ -135,56 +133,31 @@ func handleBpmCommand() {
 	}
 
 	id := os.Args[2]
-	vocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
-	instrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+	inputPath := fmt.Sprintf("./data/%s.wav", id)
 
-	// Check if both files exist
-	if _, err := os.Stat(vocalPath); os.IsNotExist(err) {
-		fmt.Printf("Error: Vocal file %s does not exist\n", vocalPath)
-		os.Exit(1)
-	}
-	if _, err := os.Stat(instrumentalPath); os.IsNotExist(err) {
-		fmt.Printf("Error: Instrumental file %s does not exist\n", instrumentalPath)
+	// Check if input file exists
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Analyzing BPM for %s...\n", id)
 	
-	// Run BPM analysis on vocal track
-	fmt.Println("\n=== Vocal Track Analysis ===")
-	vocalCmd := exec.Command("python3", "bpm/beats_per_min.py", vocalPath)
-	vocalOutput, err := vocalCmd.CombinedOutput()
+	// Run BPM analysis on the main audio file
+	bpmCmd := exec.Command("python3", "bpm/beats_per_min.py", inputPath)
+	output, err := bpmCmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("Error analyzing vocal track: %v\n", err)
-		fmt.Printf("Output: %s\n", string(vocalOutput))
+		fmt.Printf("Error analyzing BPM: %v\n", err)
+		fmt.Printf("Output: %s\n", string(output))
 		os.Exit(1)
 	}
 	
-	fmt.Printf("%s\n", string(vocalOutput))
+	fmt.Printf("%s\n", string(output))
 	
-	// Parse vocal track JSON
-	var vocalData map[string]interface{}
-	if err := json.Unmarshal(vocalOutput, &vocalData); err != nil {
-		fmt.Printf("Error parsing vocal track JSON: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Run BPM analysis on instrumental track
-	fmt.Println("\n=== Instrumental Track Analysis ===")
-	instrumentalCmd := exec.Command("python3", "bpm/beats_per_min.py", instrumentalPath)
-	instrumentalOutput, err := instrumentalCmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("Error analyzing instrumental track: %v\n", err)
-		fmt.Printf("Output: %s\n", string(instrumentalOutput))
-		os.Exit(1)
-	}
-	
-	fmt.Printf("%s\n", string(instrumentalOutput))
-	
-	// Parse instrumental track JSON
-	var instrumentalData map[string]interface{}
-	if err := json.Unmarshal(instrumentalOutput, &instrumentalData); err != nil {
-		fmt.Printf("Error parsing instrumental track JSON: %v\n", err)
+	// Parse JSON output
+	var bpmData map[string]interface{}
+	if err := json.Unmarshal(output, &bpmData); err != nil {
+		fmt.Printf("Error parsing BPM JSON: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -196,12 +169,10 @@ func handleBpmCommand() {
 	}
 	defer db.Close()
 
-	vocalBPM := vocalData["bpm"].(float64)
-	vocalKey := vocalData["key"].(string)
-	instrumentalBPM := instrumentalData["bpm"].(float64)
-	instrumentalKey := instrumentalData["key"].(string)
+	bpm := bpmData["bpm"].(float64)
+	key := bpmData["key"].(string)
 
-	if err := storeBPMData(db, id, vocalBPM, vocalKey, instrumentalBPM, instrumentalKey); err != nil {
+	if err := storeBPMData(db, id, bpm, key); err != nil {
 		fmt.Printf("Warning: Could not store BPM data in database: %v\n", err)
 	} else {
 		fmt.Printf("\nBPM data stored in database for %s\n", id)
