@@ -54,7 +54,6 @@ func EnsureWav(youtubeID string) error {
 		return nil
 	}
 
-	fmt.Printf("Extracting WAV audio from %s to %s...\n", input, wavPath)
 	cmd := exec.Command(
 		"ffmpeg",
 		"-y",

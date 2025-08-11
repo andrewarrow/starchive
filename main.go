@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/json"
-	"flag"
-	"fmt"
-	"io"
-	"net/http"
-	"sync"
+    "encoding/json"
+    "flag"
+    "fmt"
+    "io"
+    "net/http"
+    "os"
+    "sync"
 )
 
 type DownloadQueue struct {
@@ -79,54 +80,81 @@ var downloadQueue *DownloadQueue
 var downloadVideos bool
 
 func main() {
-	// Parse CLI flags
-	flag.BoolVar(&downloadVideos, "download-videos", true, "Download full videos; if false, only subtitles and thumbnails")
-	flag.Parse()
+    // Simple subcommand dispatch: first arg is the command
+    if len(os.Args) < 2 {
+        fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run    Start the server (default features)\n  ls     List files in ./data")
+        os.Exit(1)
+    }
 
-	downloadQueue = NewDownloadQueue()
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Request received:", r.Method, r.URL.Path)
-		fmt.Fprintf(w, "hello world")
-	})
+    cmd := os.Args[1]
+    switch cmd {
+    case "run":
+        runCmd := flag.NewFlagSet("run", flag.ExitOnError)
+        runCmd.BoolVar(&downloadVideos, "download-videos", true, "Download full videos; if false, only subtitles and thumbnails")
+        // Parse flags after the subcommand
+        if err := runCmd.Parse(os.Args[2:]); err != nil {
+            fmt.Println("Error parsing flags:", err)
+            os.Exit(2)
+        }
 
-	http.HandleFunc("/youtube", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+        downloadQueue = NewDownloadQueue()
+        http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+            fmt.Println("Request received:", r.Method, r.URL.Path)
+            fmt.Fprintf(w, "hello world")
+        })
 
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Error reading request body", http.StatusBadRequest)
-			return
-		}
-		defer r.Body.Close()
+        http.HandleFunc("/youtube", func(w http.ResponseWriter, r *http.Request) {
+            if r.Method != http.MethodPost {
+                http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+                return
+            }
 
-		var jsonData map[string]interface{}
-		if err := json.Unmarshal(body, &jsonData); err != nil {
-			fmt.Printf("Invalid JSON received: %s\n", string(body))
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
+            body, err := io.ReadAll(r.Body)
+            if err != nil {
+                http.Error(w, "Error reading request body", http.StatusBadRequest)
+                return
+            }
+            defer r.Body.Close()
 
-		fmt.Printf("JSON received: %+v\n", jsonData)
+            var jsonData map[string]interface{}
+            if err := json.Unmarshal(body, &jsonData); err != nil {
+                fmt.Printf("Invalid JSON received: %s\n", string(body))
+                http.Error(w, "Invalid JSON", http.StatusBadRequest)
+                return
+            }
 
-		id, ok := jsonData["videoId"].(string)
-		if !ok {
-			http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
-			return
-		}
+            fmt.Printf("JSON received: %+v\n", jsonData)
 
-		added := downloadQueue.AddToQueue(id)
-		if !added {
-			fmt.Fprintf(w, "Video %s is already in download queue", id)
-			return
-		}
+            id, ok := jsonData["videoId"].(string)
+            if !ok {
+                http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
+                return
+            }
 
-		queueLength, isRunning := downloadQueue.GetQueueStatus()
-		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
-	})
+            added := downloadQueue.AddToQueue(id)
+            if !added {
+                fmt.Fprintf(w, "Video %s is already in download queue", id)
+                return
+            }
 
-	fmt.Println("Server starting on port 3009...")
-	http.ListenAndServe(":3009", nil)
+            queueLength, isRunning := downloadQueue.GetQueueStatus()
+            fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
+        })
+
+        fmt.Println("Server starting on port 3009...")
+        http.ListenAndServe(":3009", nil)
+    case "ls":
+        entries, err := os.ReadDir("./data")
+        if err != nil {
+            fmt.Println("Error reading ./data:", err)
+            os.Exit(1)
+        }
+        for _, e := range entries {
+            fmt.Println(e.Name())
+        }
+    default:
+        fmt.Printf("Unknown command: %s\n", cmd)
+        fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run    Start the server (default features)\n  ls     List files in ./data")
+        os.Exit(1)
+    }
 }
