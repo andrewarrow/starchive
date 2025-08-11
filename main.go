@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
-	"time"
 )
 
 type DownloadQueue struct {
@@ -153,8 +153,31 @@ func main() {
 			fmt.Println("Error reading ./data:", err)
 			os.Exit(1)
 		}
+		
 		for _, e := range entries {
-			fmt.Println(e.Name())
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+				id := strings.TrimSuffix(e.Name(), ".json")
+				
+				filePath := "./data/" + e.Name()
+				fileContent, err := os.ReadFile(filePath)
+				if err != nil {
+					fmt.Printf("%s\t<error reading file>\n", id)
+					continue
+				}
+				
+				var jsonData map[string]interface{}
+				if err := json.Unmarshal(fileContent, &jsonData); err != nil {
+					fmt.Printf("%s\t<error parsing JSON>\n", id)
+					continue
+				}
+				
+				title, ok := jsonData["title"].(string)
+				if !ok {
+					title = "<no title>"
+				}
+				
+				fmt.Printf("%s\t%s\n", id, title)
+			}
 		}
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
