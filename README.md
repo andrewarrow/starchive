@@ -22,7 +22,7 @@ A browser extension and local backend system that automatically archives YouTube
 1. When you visit a YouTube video page, the content script automatically detects the video ID from the URL
 2. The video ID is sent to the background script, which makes a POST request to `http://localhost:3009/youtube`
 3. The Go backend receives the video ID and uses yt-dlp to download the video
-4. Videos are saved to the `./data/` directory
+4. Videos are saved to the `./data/` directory and an audio-only `id.wav` file is extracted via ffmpeg
 5. The system also supports subtitle downloading (though currently limited to 1 attempt)
 
 ## Setup
@@ -38,7 +38,7 @@ A browser extension and local backend system that automatically archives YouTube
 ## Dependencies
 
 - **yt-dlp**: For downloading YouTube videos
-- **ffmpeg**: For video format conversion and processing
+- **ffmpeg**: For video conversion and audio extraction (creates `id.wav`)
 - **Go**: Backend server runtime
 
 ## Other Starchive

@@ -40,7 +40,39 @@ func DownloadVideo(youtubeID string) (string, error) {
 		return "", fmt.Errorf("error downloading and converting YouTube video: %v", err)
 	}
 
+	if err := EnsureWav(youtubeID); err != nil {
+		fmt.Printf("Warning: failed to create WAV: %v\n", err)
+	}
+
 	return youtubeID, nil
+}
+
+func EnsureWav(youtubeID string) error {
+	wavPath := fmt.Sprintf("./data/%s.wav", youtubeID)
+	if _, err := os.Stat(wavPath); err == nil {
+		fmt.Printf("WAV %s already exists, skipping creation\n", wavPath)
+		return nil
+	}
+
+	fmt.Printf("Extracting WAV audio from %s to %s...\n", input, wavPath)
+	cmd := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-i", fmt.Sprintf("./data/%s.mp4", youtubeID),
+		"-vn",
+		"-acodec", "pcm_s16le",
+		"-ar", "44100",
+		"-ac", "2",
+		wavPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ffmpeg failed creating WAV: %v", err)
+	}
+
+	return nil
 }
 
 func DownloadSubtitles(youtubeID string) error {

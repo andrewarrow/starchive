@@ -2,8 +2,12 @@
   "name": "starchive",
   "version": "1.0",
   "manifest_version": 3,
+  "permissions": [
+    "cookies"
+  ],
   "host_permissions": [
-    "http://localhost:3009/*"
+    "http://localhost:3009/*",
+    "https://*.youtube.com/*"
   ],
   "background": {
     "scripts": ["background.js"]
