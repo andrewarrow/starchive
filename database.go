@@ -16,6 +16,7 @@ type VideoMetadata struct {
 	ID           string
 	Title        string
 	LastModified time.Time
+	VocalDone    bool
 }
 
 func initDatabase() (*sql.DB, error) {
@@ -36,7 +37,8 @@ func initDatabase() (*sql.DB, error) {
 	CREATE TABLE IF NOT EXISTS video_metadata (
 		id TEXT PRIMARY KEY,
 		title TEXT NOT NULL,
-		last_modified INTEGER NOT NULL
+		last_modified INTEGER NOT NULL,
+		vocal_done BOOLEAN DEFAULT 0
 	);
 	CREATE INDEX IF NOT EXISTS idx_last_modified ON video_metadata(last_modified);
 	`
@@ -52,8 +54,8 @@ func getCachedMetadata(db *sql.DB, id string, fileModTime time.Time) (*VideoMeta
 	var metadata VideoMetadata
 	var lastModified int64
 	
-	err := db.QueryRow("SELECT id, title, last_modified FROM video_metadata WHERE id = ?", id).
-		Scan(&metadata.ID, &metadata.Title, &lastModified)
+	err := db.QueryRow("SELECT id, title, last_modified, vocal_done FROM video_metadata WHERE id = ?", id).
+		Scan(&metadata.ID, &metadata.Title, &lastModified, &metadata.VocalDone)
 	
 	if err != nil {
 		return nil, false
@@ -71,9 +73,9 @@ func getCachedMetadata(db *sql.DB, id string, fileModTime time.Time) (*VideoMeta
 
 func cacheMetadata(db *sql.DB, metadata VideoMetadata) error {
 	_, err := db.Exec(`
-		INSERT OR REPLACE INTO video_metadata (id, title, last_modified) 
-		VALUES (?, ?, ?)`,
-		metadata.ID, metadata.Title, metadata.LastModified.Unix())
+		INSERT OR REPLACE INTO video_metadata (id, title, last_modified, vocal_done) 
+		VALUES (?, ?, ?, ?)`,
+		metadata.ID, metadata.Title, metadata.LastModified.Unix(), metadata.VocalDone)
 	return err
 }
 
@@ -104,5 +106,11 @@ func parseJSONMetadata(filePath string) (*VideoMetadata, error) {
 		ID:           id,
 		Title:        title,
 		LastModified: fileInfo.ModTime(),
+		VocalDone:    false,
 	}, nil
+}
+
+func markVocalDone(db *sql.DB, id string) error {
+	_, err := db.Exec("UPDATE video_metadata SET vocal_done = 1 WHERE id = ?", id)
+	return err
 }

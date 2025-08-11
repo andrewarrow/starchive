@@ -36,7 +36,11 @@ func handleLsCommand() {
 			
 			// Try to get from cache first
 			if cachedMetadata, found := getCachedMetadata(db, id, fileInfo.ModTime()); found {
-				fmt.Printf("%s\t%s\n", cachedMetadata.ID, cachedMetadata.Title)
+				vocalStatus := "NO"
+				if cachedMetadata.VocalDone {
+					vocalStatus = "YES"
+				}
+				fmt.Printf("%s\t%s\t[Vocal: %s]\n", cachedMetadata.ID, cachedMetadata.Title, vocalStatus)
 				continue
 			}
 			
@@ -52,7 +56,11 @@ func handleLsCommand() {
 				fmt.Printf("Warning: failed to cache metadata for %s: %v\n", id, err)
 			}
 			
-			fmt.Printf("%s\t%s\n", metadata.ID, metadata.Title)
+			vocalStatus := "NO"
+			if metadata.VocalDone {
+				vocalStatus = "YES"
+			}
+			fmt.Printf("%s\t%s\t[Vocal: %s]\n", metadata.ID, metadata.Title, vocalStatus)
 		}
 	}
 }
@@ -90,4 +98,18 @@ func handleVocalCommand() {
 
 	fmt.Printf("Successfully separated vocals for %s\n", id)
 	fmt.Printf("Output: %s\n", string(output))
+
+	// Mark as vocal done in database
+	db, err := initDatabase()
+	if err != nil {
+		fmt.Printf("Warning: Could not initialize database to mark vocal as done: %v\n", err)
+		return
+	}
+	defer db.Close()
+
+	if err := markVocalDone(db, id); err != nil {
+		fmt.Printf("Warning: Could not mark vocal as done in database: %v\n", err)
+	} else {
+		fmt.Printf("Marked %s as vocal done in database\n", id)
+	}
 }
