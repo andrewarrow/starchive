@@ -100,15 +100,17 @@ func handleVocalCommand() {
 
 	fmt.Printf("Running: %s\n", cmd.String())
 	
-	output, err := cmd.CombinedOutput()
+	// Set command to output directly to stdout/stderr for verbose output
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	
+	err := cmd.Run()
 	if err != nil {
 		fmt.Printf("Error running audio-separator: %v\n", err)
-		fmt.Printf("Output: %s\n", string(output))
 		os.Exit(1)
 	}
 
 	fmt.Printf("Successfully separated vocals for %s\n", id)
-	fmt.Printf("Output: %s\n", string(output))
 
 	// Mark as vocal done in database
 	db, err := initDatabase()
