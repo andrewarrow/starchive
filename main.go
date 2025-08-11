@@ -80,6 +80,32 @@ func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
 var downloadQueue *DownloadQueue
 var downloadVideos bool
 
+func writeCookiesFile(cookiesStr string) error {
+	file, err := os.Create("./cookies.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create cookies file: %v", err)
+	}
+	defer file.Close()
+
+	// Write Netscape HTTP Cookie File header
+	file.WriteString("# Netscape HTTP Cookie File\n")
+	
+	// Parse cookies string and convert to Netscape format
+	// Expected format: "name1=value1; name2=value2; ..."
+	cookies := strings.Split(cookiesStr, "; ")
+	for _, cookie := range cookies {
+		parts := strings.SplitN(cookie, "=", 2)
+		if len(parts) == 2 {
+			name := parts[0]
+			value := parts[1]
+			// Write in Netscape format: domain, flag, path, secure, expiration, name, value
+			fmt.Fprintf(file, ".youtube.com\tTRUE\t/\tFALSE\t0\t%s\t%s\n", name, value)
+		}
+	}
+	
+	return nil
+}
+
 func main() {
 	// Simple subcommand dispatch: first arg is the command
 	if len(os.Args) < 2 {
@@ -130,6 +156,13 @@ func main() {
 			if !ok {
 				http.Error(w, "Missing or invalid 'id' field", http.StatusBadRequest)
 				return
+			}
+
+			// Handle cookies if provided
+			if cookies, ok := jsonData["cookies"].(string); ok && cookies != "" {
+				if err := writeCookiesFile(cookies); err != nil {
+					fmt.Printf("Warning: failed to write cookies: %v\n", err)
+				}
 			}
 
 			added := downloadQueue.AddToQueue(id)

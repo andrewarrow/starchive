@@ -29,6 +29,7 @@ func DownloadVideo(youtubeID string) (string, error) {
 	}
 
 	cmd := exec.Command("yt-dlp",
+		"--cookies", "./cookies.txt",
 		"-o", "./data/%(id)s.%(ext)s",
 		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
 		"--merge-output-format", "mp4",
@@ -89,7 +90,7 @@ func DownloadSubtitles(youtubeID string) error {
 	// Retry with exponential backoff up to 50 times
 	var lastErr error
 	for attempt := 1; attempt <= 1; attempt++ {
-		subCmd := exec.Command("yt-dlp", "-o", "./data/"+youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", youtubeURL)
+		subCmd := exec.Command("yt-dlp", "--cookies", "./cookies.txt", "-o", "./data/"+youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", youtubeURL)
 		subCmd.Stdout = os.Stdout
 		subCmd.Stderr = os.Stderr
 
@@ -130,6 +131,7 @@ func DownloadThumbnail(youtubeID string) error {
 
 	cmd := exec.Command(
 		"yt-dlp",
+		"--cookies", "./cookies.txt",
 		"-o", "./data/"+youtubeID,
 		"--skip-download",
 		"--write-thumbnail",
@@ -158,6 +160,7 @@ func DownloadJSON(youtubeID string) error {
 
 	cmd := exec.Command(
 		"yt-dlp",
+		"--cookies", "./cookies.txt",
 		"-j",
 		"--no-warnings",
 		"https://www.youtube.com/watch?v="+youtubeID,
