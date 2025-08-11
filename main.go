@@ -143,7 +143,10 @@ func main() {
 		})
 
 		fmt.Println("Server starting on port 3009...")
-		http.ListenAndServe(":3009", nil)
+		if err := http.ListenAndServe(":3009", nil); err != nil {
+			fmt.Printf("Server error: %v\n", err)
+			os.Exit(1)
+		}
 	case "ls":
 		entries, err := os.ReadDir("./data")
 		if err != nil {
@@ -158,6 +161,4 @@ func main() {
 		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run    Start the server (default features)\n  ls     List files in ./data")
 		os.Exit(1)
 	}
-
-	time.Sleep(time.Hour * 24)
 }
