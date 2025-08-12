@@ -691,13 +691,12 @@ func handleDemoCommand() {
 		os.Exit(1)
 	}
 
-	// Ensure temp file is always cleaned up
+	// Create processed temp file path
+	processedTempPath := fmt.Sprintf("/tmp/%s_%s_processed.wav", id, audioType)
+
+	// Ensure temp files are always cleaned up
 	defer os.Remove(tempClipPath)
-
-	fmt.Printf("Playing 30-second preview (press any key to stop)...\n")
-
-	// Play temp file with ffplay and wait for keypress
-	playTempFile(tempClipPath)
+	defer os.Remove(processedTempPath)
 
 	// Build rubberband command with appropriate flags
 	rubberbandArgs := []string{"--fine", "--formant"}
@@ -717,8 +716,8 @@ func handleDemoCommand() {
 		rubberbandArgs = append(rubberbandArgs, "--time", fmt.Sprintf("%.6f", timeRatio))
 	}
 	
-	// Add input and output paths
-	rubberbandArgs = append(rubberbandArgs, tempClipPath, demoPath)
+	// Add input and output paths (process to temp file first)
+	rubberbandArgs = append(rubberbandArgs, tempClipPath, processedTempPath)
 
 	fmt.Printf("Applying audio processing with rubberband...\n")
 
@@ -731,6 +730,19 @@ func handleDemoCommand() {
 	err = pitchCmd.Run()
 	if err != nil {
 		fmt.Printf("Error applying audio processing: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Playing processed demo (press any key to stop)...\n")
+
+	// Play processed temp file with ffplay and wait for keypress
+	playTempFile(processedTempPath)
+
+	// Copy processed temp file to final demo location
+	copyCmd := exec.Command("cp", processedTempPath, demoPath)
+	err = copyCmd.Run()
+	if err != nil {
+		fmt.Printf("Error saving demo file: %v\n", err)
 		os.Exit(1)
 	}
 
