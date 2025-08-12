@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -583,16 +584,42 @@ func getAudioFilename(id, audioType string) string {
 }
 
 func handleDemoCommand() {
+	demoCmd := flag.NewFlagSet("demo", flag.ExitOnError)
+	pitchShift := demoCmd.Int("pitch", 3, "Pitch shift in semitones (can be negative)")
+	tempoChange := demoCmd.Float64("tempo", 0.0, "Tempo change as percentage (e.g., 30 for 30% faster, -20 for 20% slower)")
+	
+	demoCmd.Usage = func() {
+		fmt.Println("Usage: starchive demo [options] <id> <I|V>")
+		fmt.Println("Creates a 30-second demo from the middle of the track with pitch/tempo adjustments")
+		fmt.Println("\nOptions:")
+		demoCmd.PrintDefaults()
+		fmt.Println("\nExamples:")
+		fmt.Println("  starchive demo NdYWuo9OFAw I                    # +3 semitones, no tempo change")
+		fmt.Println("  starchive demo -pitch -2 NdYWuo9OFAw V          # -2 semitones, no tempo change")
+		fmt.Println("  starchive demo -tempo 25 NdYWuo9OFAw I          # +3 semitones, 25% faster")
+		fmt.Println("  starchive demo -pitch 0 -tempo -15 NdYWuo9OFAw V # no pitch change, 15% slower")
+	}
+
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: starchive demo <id> <I|V>")
-		fmt.Println("Example: starchive demo NdYWuo9OFAw I  (instrumental)")
-		fmt.Println("         starchive demo NdYWuo9OFAw V  (vocals)")
-		fmt.Println("Creates a 30-second demo from the middle of the track with +3 pitch shift")
+		demoCmd.Usage()
 		os.Exit(1)
 	}
 
-	id := os.Args[2]
-	audioType := os.Args[3]
+	// Parse flags starting from args[2:]
+	if err := demoCmd.Parse(os.Args[2:]); err != nil {
+		fmt.Println("Error parsing flags:", err)
+		os.Exit(1)
+	}
+
+	// Get remaining args after flag parsing
+	args := demoCmd.Args()
+	if len(args) < 2 {
+		demoCmd.Usage()
+		os.Exit(1)
+	}
+
+	id := args[0]
+	audioType := args[1]
 
 	inputPath := getAudioFilename(id, audioType)
 
@@ -631,6 +658,20 @@ func handleDemoCommand() {
 	}
 
 	fmt.Printf("Creating demo for %s (%s)\n", id, trackDesc)
+	if *pitchShift != 0 {
+		if *pitchShift > 0 {
+			fmt.Printf("Pitch shift: +%d semitones\n", *pitchShift)
+		} else {
+			fmt.Printf("Pitch shift: %d semitones\n", *pitchShift)
+		}
+	}
+	if *tempoChange != 0 {
+		if *tempoChange > 0 {
+			fmt.Printf("Tempo change: +%.1f%% faster\n", *tempoChange)
+		} else {
+			fmt.Printf("Tempo change: %.1f%% slower\n", -*tempoChange)
+		}
+	}
 	fmt.Printf("Extracting 30 seconds from position %.1fs...\n", startPosition)
 
 	// Extract 30 seconds from the middle using ffmpeg
@@ -650,22 +691,35 @@ func handleDemoCommand() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Applying +3 semitone pitch shift with rubberband...\n")
+	// Build rubberband command with appropriate flags
+	rubberbandArgs := []string{"--fine", "--formant"}
+	
+	// Add pitch shift if specified
+	if *pitchShift != 0 {
+		rubberbandArgs = append(rubberbandArgs, "--pitch", fmt.Sprintf("%d", *pitchShift))
+	}
+	
+	// Add tempo change if specified
+	if *tempoChange != 0 {
+		// Convert percentage to ratio (e.g., 30% -> 1.3, -20% -> 0.8)
+		tempoRatio := 1.0 + (*tempoChange / 100.0)
+		rubberbandArgs = append(rubberbandArgs, "--time", fmt.Sprintf("%.6f", tempoRatio))
+	}
+	
+	// Add input and output paths
+	rubberbandArgs = append(rubberbandArgs, tempClipPath, demoPath)
 
-	// Apply +3 semitone pitch shift using rubberband
-	pitchCmd := exec.Command("rubberband",
-		"--pitch", "3",
-		"--fine",
-		"--formant",
-		tempClipPath,
-		demoPath)
+	fmt.Printf("Applying audio processing with rubberband...\n")
+
+	// Apply processing using rubberband
+	pitchCmd := exec.Command("rubberband", rubberbandArgs...)
 
 	pitchCmd.Stdout = os.Stdout
 	pitchCmd.Stderr = os.Stderr
 
 	err = pitchCmd.Run()
 	if err != nil {
-		fmt.Printf("Error applying pitch shift: %v\n", err)
+		fmt.Printf("Error applying audio processing: %v\n", err)
 		// Clean up temp file
 		os.Remove(tempClipPath)
 		os.Exit(1)
