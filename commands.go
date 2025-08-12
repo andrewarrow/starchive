@@ -119,6 +119,34 @@ func handleVocalCommand() {
 		os.Exit(1)
 	}
 
+	// Fix audio-separator filename issue with leading underscores
+	if strings.HasPrefix(id, "_") {
+		// Check if audio-separator stripped the leading underscore
+		expectedVocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+		expectedInstrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+		
+		strippedID := strings.TrimPrefix(id, "_")
+		actualVocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", strippedID)
+		actualInstrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", strippedID)
+		
+		// Rename files if audio-separator stripped the underscore
+		if _, err := os.Stat(actualVocalPath); err == nil {
+			if err := os.Rename(actualVocalPath, expectedVocalPath); err != nil {
+				fmt.Printf("Warning: Could not rename vocal file: %v\n", err)
+			} else {
+				fmt.Printf("Renamed: %s -> %s\n", filepath.Base(actualVocalPath), filepath.Base(expectedVocalPath))
+			}
+		}
+		
+		if _, err := os.Stat(actualInstrumentalPath); err == nil {
+			if err := os.Rename(actualInstrumentalPath, expectedInstrumentalPath); err != nil {
+				fmt.Printf("Warning: Could not rename instrumental file: %v\n", err)
+			} else {
+				fmt.Printf("Renamed: %s -> %s\n", filepath.Base(actualInstrumentalPath), filepath.Base(expectedInstrumentalPath))
+			}
+		}
+	}
+
 	fmt.Printf("Successfully separated vocals for %s\n", id)
 
 	// Mark as vocal done in database
