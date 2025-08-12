@@ -452,14 +452,23 @@ func handleRmCommand() {
 
 func handlePlayCommand() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: starchive play <id>")
+		fmt.Println("Usage: starchive play <id> [I|V]")
 		fmt.Println("Example: starchive play NdYWuo9OFAw")
+		fmt.Println("         starchive play NdYWuo9OFAw I  (instrumental)")
+		fmt.Println("         starchive play NdYWuo9OFAw V  (vocals)")
 		fmt.Println("Plays the wav file starting from the middle. Press any key to stop.")
 		os.Exit(1)
 	}
 
 	id := os.Args[2]
-	inputPath := fmt.Sprintf("./data/%s.wav", id)
+	
+	// Check for optional audio type parameter
+	audioType := ""
+	if len(os.Args) > 3 {
+		audioType = os.Args[3]
+	}
+	
+	inputPath := getAudioFilename(id, audioType)
 
 	// Check if input file exists
 	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
@@ -476,7 +485,17 @@ func handlePlayCommand() {
 
 	// Calculate middle position (start from halfway through)
 	startPosition := duration / 2
-	fmt.Printf("Playing %s from position %.1fs (middle of %.1fs total)\n", id, startPosition, duration)
+	
+	// Determine track description for display
+	trackDesc := "main track"
+	switch audioType {
+	case "I", "instrumental", "instrumentals":
+		trackDesc = "instrumental track"
+	case "V", "vocal", "vocals":
+		trackDesc = "vocal track"
+	}
+	
+	fmt.Printf("Playing %s (%s) from position %.1fs (middle of %.1fs total)\n", id, trackDesc, startPosition, duration)
 	fmt.Println("Press any key to stop playback...")
 
 	// Create context for cancellation
@@ -549,6 +568,17 @@ func waitForKeyPress() {
 		// Interrupt signal received
 		fmt.Println("\nInterrupted.")
 		return
+	}
+}
+
+func getAudioFilename(id, audioType string) string {
+	switch audioType {
+	case "V", "vocal", "vocals":
+		return fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+	case "I", "instrumental", "instrumentals":
+		return fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+	default:
+		return fmt.Sprintf("./data/%s.wav", id)
 	}
 }
 
