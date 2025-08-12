@@ -645,8 +645,8 @@ func handleDemoCommand() {
 	// Create temporary file path for 30-second clip
 	tempClipPath := fmt.Sprintf("/tmp/%s_%s_30sec.wav", id, audioType)
 	
-	// Create temporary file path for final demo
-	demoPath := fmt.Sprintf("./data/%s_%s_demo.wav", id, audioType)
+	// Create temporary file path for final demo (also in /tmp)
+	demoPath := fmt.Sprintf("/tmp/%s_%s_demo.wav", id, audioType)
 
 	// Determine track description for display
 	trackDesc := "main track"
@@ -691,12 +691,9 @@ func handleDemoCommand() {
 		os.Exit(1)
 	}
 
-	// Create processed temp file path
-	processedTempPath := fmt.Sprintf("/tmp/%s_%s_processed.wav", id, audioType)
-
 	// Ensure temp files are always cleaned up
 	defer os.Remove(tempClipPath)
-	defer os.Remove(processedTempPath)
+	defer os.Remove(demoPath)
 
 	// Build rubberband command with appropriate flags
 	rubberbandArgs := []string{"--fine", "--formant"}
@@ -716,8 +713,8 @@ func handleDemoCommand() {
 		rubberbandArgs = append(rubberbandArgs, "--time", fmt.Sprintf("%.6f", timeRatio))
 	}
 	
-	// Add input and output paths (process to temp file first)
-	rubberbandArgs = append(rubberbandArgs, tempClipPath, processedTempPath)
+	// Add input and output paths (process directly to demo file)
+	rubberbandArgs = append(rubberbandArgs, tempClipPath, demoPath)
 
 	fmt.Printf("Applying audio processing with rubberband...\n")
 
@@ -735,18 +732,10 @@ func handleDemoCommand() {
 
 	fmt.Printf("Playing processed demo (press any key to stop)...\n")
 
-	// Play processed temp file with ffplay and wait for keypress
-	playTempFile(processedTempPath)
+	// Play processed demo file with ffplay and wait for keypress
+	playTempFile(demoPath)
 
-	// Copy processed temp file to final demo location
-	copyCmd := exec.Command("cp", processedTempPath, demoPath)
-	err = copyCmd.Run()
-	if err != nil {
-		fmt.Printf("Error saving demo file: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Successfully created demo: %s\n", demoPath)
+	fmt.Printf("Demo preview completed. All temp files cleaned up.\n")
 }
 
 func playTempFile(filePath string) {
