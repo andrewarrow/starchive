@@ -691,6 +691,14 @@ func handleDemoCommand() {
 		os.Exit(1)
 	}
 
+	// Ensure temp file is always cleaned up
+	defer os.Remove(tempClipPath)
+
+	fmt.Printf("Playing 30-second preview (press any key to stop)...\n")
+
+	// Play temp file with ffplay and wait for keypress
+	playTempFile(tempClipPath)
+
 	// Build rubberband command with appropriate flags
 	rubberbandArgs := []string{"--fine", "--formant"}
 	
@@ -723,15 +731,33 @@ func handleDemoCommand() {
 	err = pitchCmd.Run()
 	if err != nil {
 		fmt.Printf("Error applying audio processing: %v\n", err)
-		// Clean up temp file
-		os.Remove(tempClipPath)
 		os.Exit(1)
 	}
 
-	// Clean up temporary file
-	os.Remove(tempClipPath)
-
 	fmt.Printf("Successfully created demo: %s\n", demoPath)
+}
+
+func playTempFile(filePath string) {
+	// Create context for cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start playback in background
+	go func() {
+		// Use ffplay to play the temp file
+		cmd := exec.CommandContext(ctx, "ffplay", 
+			"-autoexit", // Exit when playback ends
+			"-nodisp", // No video display (audio only)
+			"-loglevel", "quiet", // Suppress output
+			filePath)
+		
+		cmd.Run() // This will block until playback ends or context is canceled
+	}()
+
+	// Wait for any key press
+	waitForKeyPress()
+	cancel() // Stop playback
+	fmt.Println("Preview stopped.")
 }
 
 func truncateString(s string, maxLen int) string {
