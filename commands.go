@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 )
 
 func handleLsCommand() {
@@ -443,6 +448,108 @@ func handleRmCommand() {
 	}
 	
 	fmt.Printf("Successfully removed %d file(s) with id: %s\n", len(matches), id)
+}
+
+func handlePlayCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive play <id>")
+		fmt.Println("Example: starchive play NdYWuo9OFAw")
+		fmt.Println("Plays the wav file starting from the middle. Press any key to stop.")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	inputPath := fmt.Sprintf("./data/%s.wav", id)
+
+	// Check if input file exists
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
+		os.Exit(1)
+	}
+
+	// Get duration of the audio file using ffprobe
+	duration, err := getAudioDuration(inputPath)
+	if err != nil {
+		fmt.Printf("Error getting audio duration: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Calculate middle position (start from halfway through)
+	startPosition := duration / 2
+	fmt.Printf("Playing %s from position %.1fs (middle of %.1fs total)\n", id, startPosition, duration)
+	fmt.Println("Press any key to stop playback...")
+
+	// Create context for cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start playback in background
+	go func() {
+		// Use ffplay to play from the middle position
+		cmd := exec.CommandContext(ctx, "ffplay", 
+			"-ss", fmt.Sprintf("%.1f", startPosition), // Start position
+			"-autoexit", // Exit when playback ends
+			"-nodisp", // No video display (audio only)
+			"-loglevel", "quiet", // Suppress output
+			inputPath)
+		
+		cmd.Run() // This will block until playback ends or context is canceled
+	}()
+
+	// Wait for any key press
+	waitForKeyPress()
+	cancel() // Stop playback
+	fmt.Println("\nPlayback stopped.")
+}
+
+func getAudioDuration(filePath string) (float64, error) {
+	// Use ffprobe to get duration
+	cmd := exec.Command("ffprobe", 
+		"-v", "quiet",
+		"-show_entries", "format=duration",
+		"-of", "csv=p=0",
+		filePath)
+	
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	
+	durationStr := strings.TrimSpace(string(output))
+	duration, err := strconv.ParseFloat(durationStr, 64)
+	if err != nil {
+		return 0, err
+	}
+	
+	return duration, nil
+}
+
+func waitForKeyPress() {
+	// Set up signal handler for interrupt
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Create a channel for key press detection
+	keyChan := make(chan bool, 1)
+
+	// Start goroutine to detect key press
+	go func() {
+		// Read from stdin
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadByte() // Wait for any byte input
+		keyChan <- true
+	}()
+
+	// Wait for either key press or signal
+	select {
+	case <-keyChan:
+		// Key was pressed
+		return
+	case <-sigChan:
+		// Interrupt signal received
+		fmt.Println("\nInterrupted.")
+		return
+	}
 }
 
 func truncateString(s string, maxLen int) string {
