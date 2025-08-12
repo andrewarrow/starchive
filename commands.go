@@ -667,7 +667,7 @@ func handleDemoCommand() {
 	}
 	if *tempoChange != 0 {
 		if *tempoChange > 0 {
-			fmt.Printf("Tempo change: +%.1f%% faster\n", *tempoChange)
+			fmt.Printf("Tempo change: %.1f%% faster\n", *tempoChange)
 		} else {
 			fmt.Printf("Tempo change: %.1f%% slower\n", -*tempoChange)
 		}
@@ -701,9 +701,12 @@ func handleDemoCommand() {
 	
 	// Add tempo change if specified
 	if *tempoChange != 0 {
-		// Convert percentage to ratio (e.g., 30% -> 1.3, -20% -> 0.8)
-		tempoRatio := 1.0 + (*tempoChange / 100.0)
-		rubberbandArgs = append(rubberbandArgs, "--time", fmt.Sprintf("%.6f", tempoRatio))
+		// Convert percentage to time ratio for rubberband
+		// Positive % = faster = smaller time ratio (e.g., +25% faster = 0.8)
+		// Negative % = slower = larger time ratio (e.g., -20% slower = 1.25)
+		speedMultiplier := 1.0 + (*tempoChange / 100.0)
+		timeRatio := 1.0 / speedMultiplier
+		rubberbandArgs = append(rubberbandArgs, "--time", fmt.Sprintf("%.6f", timeRatio))
 	}
 	
 	// Add input and output paths
