@@ -241,16 +241,29 @@ func handleSyncCommand() {
 		os.Exit(1)
 	}
 
-	// Process all files: vocals and instrumentals for both directions
+	// Calculate inverse ratios for additional variations
+	invRatio1to2 := 1.0 / ratio1to2  // Inverse of slowing down track1 to match track2
+	invRatio2to1 := 1.0 / ratio2to1  // Inverse of speeding up track2 to match track1
+
+	fmt.Printf("Inverse ratios:\n")
+	fmt.Printf("  %s inverse: %.3f (%.1f%%)\n", id1, invRatio1to2, (invRatio1to2-1)*100)
+	fmt.Printf("  %s inverse: %.3f (%.1f%%)\n", id2, invRatio2to1, (invRatio2to1-1)*100)
+
+	// Process all files: vocals and instrumentals for both directions + inverses (8 files total)
 	files := []string{
+		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id1),
+		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id1),
+		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id2),
+		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id2),
 		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id1),
 		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id1),
 		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id2),
 		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id2),
 	}
 
-	ratios := []float64{ratio1to2, ratio1to2, ratio2to1, ratio2to1}
-	targetIds := []string{id2, id2, id1, id1}
+	ratios := []float64{ratio1to2, ratio1to2, ratio2to1, ratio2to1, invRatio1to2, invRatio1to2, invRatio2to1, invRatio2to1}
+	suffixes := []string{"sync_to_" + id2, "sync_to_" + id2, "sync_to_" + id1, "sync_to_" + id1, 
+		"inv_sync_to_" + id2, "inv_sync_to_" + id2, "inv_sync_to_" + id1, "inv_sync_to_" + id1}
 
 	for i, file := range files {
 		inputPath := fmt.Sprintf("./data/%s", file)
@@ -263,7 +276,7 @@ func handleSyncCommand() {
 
 		// Create output filename
 		baseName := strings.TrimSuffix(file, ".wav")
-		outputPath := fmt.Sprintf("./data/%s_sync_to_%s.wav", baseName, targetIds[i])
+		outputPath := fmt.Sprintf("./data/%s_%s.wav", baseName, suffixes[i])
 
 		fmt.Printf("\nProcessing: %s -> %s (ratio: %.3f)\n", file, filepath.Base(outputPath), ratios[i])
 
@@ -289,11 +302,11 @@ func handleSyncCommand() {
 		fmt.Printf("Successfully created: %s\n", outputPath)
 	}
 
-	fmt.Printf("\nSync complete! Created synchronized versions of all tracks.\n")
+	fmt.Printf("\nSync complete! Created 8 synchronized files with normal and inverse ratios.\n")
 	fmt.Printf("Files created:\n")
 	for i, file := range files {
 		baseName := strings.TrimSuffix(file, ".wav")
-		outputName := fmt.Sprintf("%s_sync_to_%s.wav", baseName, targetIds[i])
+		outputName := fmt.Sprintf("%s_%s.wav", baseName, suffixes[i])
 		fmt.Printf("  %s\n", outputName)
 	}
 }
