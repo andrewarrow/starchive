@@ -13,7 +13,7 @@ var downloadVideos bool
 func main() {
 	// Simple subcommand dispatch: first arg is the command
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run     Start the server (default features)\n  ls      List files in ./data\n  vocal   Extract vocals from audio file using audio-separator\n  bpm     Analyze BPM and key of vocal and instrumental files\n  sync    Synchronize two audio files for mashups using rubberband\n  split   Split audio file by silence detection")
+		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run     Start the server (default features)\n  ls      List files in ./data\n  vocal   Extract vocals from audio file using audio-separator\n  bpm     Analyze BPM and key of vocal and instrumental files\n  sync    Synchronize two audio files for mashups using rubberband\n  split   Split audio file by silence detection\n  rm      Remove all files with specified id from ./data")
 		os.Exit(1)
 	}
 
@@ -46,9 +46,11 @@ func main() {
 		handleSyncCommand()
 	case "split":
 		handleSplitCommand()
+	case "rm":
+		handleRmCommand()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
-		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run     Start the server (default features)\n  ls      List files in ./data\n  vocal   Extract vocals from audio file using audio-separator\n  bpm     Analyze BPM and key of vocal and instrumental files\n  sync    Synchronize two audio files for mashups using rubberband\n  split   Split audio file by silence detection")
+		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run     Start the server (default features)\n  ls      List files in ./data\n  vocal   Extract vocals from audio file using audio-separator\n  bpm     Analyze BPM and key of vocal and instrumental files\n  sync    Synchronize two audio files for mashups using rubberband\n  split   Split audio file by silence detection\n  rm      Remove all files with specified id from ./data")
 		os.Exit(1)
 	}
 }

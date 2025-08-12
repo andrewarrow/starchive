@@ -403,6 +403,48 @@ func handleSplitCommand() {
 	fmt.Printf("Successfully split %s into parts in directory %s\n", filename, outputDir)
 }
 
+func handleRmCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive rm <id>")
+		fmt.Println("Example: starchive rm abc123")
+		fmt.Println("This will remove all files matching data/<id>*")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	dataDir := "./data"
+	
+	// Use filepath.Glob to find all files matching the pattern
+	pattern := fmt.Sprintf("%s/%s*", dataDir, id)
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		fmt.Printf("Error finding files: %v\n", err)
+		os.Exit(1)
+	}
+	
+	if len(matches) == 0 {
+		fmt.Printf("No files found matching pattern: %s\n", pattern)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Found %d file(s) matching pattern %s:\n", len(matches), pattern)
+	for _, match := range matches {
+		fmt.Printf("  %s\n", match)
+	}
+	
+	// Remove each file
+	for _, match := range matches {
+		fmt.Printf("Removing: %s\n", match)
+		err := os.Remove(match)
+		if err != nil {
+			fmt.Printf("Error removing %s: %v\n", match, err)
+			os.Exit(1)
+		}
+	}
+	
+	fmt.Printf("Successfully removed %d file(s) with id: %s\n", len(matches), id)
+}
+
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
