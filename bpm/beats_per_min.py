@@ -3,6 +3,12 @@ import argparse
 import json
 import numpy as np
 import librosa
+import warnings
+import sys
+
+# Suppress librosa warnings to stderr so they don't interfere with JSON output
+warnings.filterwarnings('ignore', category=FutureWarning, module='librosa')
+warnings.filterwarnings('ignore', category=UserWarning, module='librosa')
 
 PITCH_CLASSES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
 
@@ -18,76 +24,97 @@ def _to_float(x, default=np.nan):
 
 
 def estimate_bpm(y, sr, hop_length=512):
-    """Improved BPM estimation using multiple methods and tempo disambiguation."""
+    """Improved BPM estimation with better onset detection and tempo analysis."""
     
-    # Use multiple onset detection methods
-    onset_env_complex = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length, feature=librosa.feature.spectral_centroid)
-    onset_env_simple = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
+    # Try multiple onset detection approaches
+    onset_methods = []
     
-    # Method 1: Beat tracking with complex onset
+    # Standard onset strength
     try:
-        tempo1, _ = librosa.beat.beat_track(
-            y=y, sr=sr, onset_envelope=onset_env_complex, hop_length=hop_length
-        )
-        tempo1 = _to_float(tempo1)
+        onset1 = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
+        onset_methods.append(('standard', onset1))
     except:
-        tempo1 = np.nan
+        pass
     
-    # Method 2: Beat tracking with simple onset  
+    # Onset with percussive component
     try:
-        tempo2, _ = librosa.beat.beat_track(
-            y=y, sr=sr, onset_envelope=onset_env_simple, hop_length=hop_length
-        )
-        tempo2 = _to_float(tempo2)
+        y_percussive = librosa.effects.percussive(y)
+        onset2 = librosa.onset.onset_strength(y=y_percussive, sr=sr, hop_length=hop_length)
+        onset_methods.append(('percussive', onset2))
     except:
-        tempo2 = np.nan
+        pass
     
-    # Method 3: Direct tempo estimation with wider range
+    # Complex domain onset
     try:
-        tempo3_arr = librosa.beat.tempo(
-            onset_envelope=onset_env_simple, sr=sr, hop_length=hop_length,
-            start_bpm=60, max_tempo=200, aggregate='mean'
-        )
-        tempo3 = _to_float(tempo3_arr)
+        onset3 = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length, feature=librosa.feature.spectral_centroid)
+        onset_methods.append(('complex', onset3))
     except:
-        tempo3 = np.nan
+        pass
     
-    # Method 4: Autocorrelation-based tempo
-    try:
-        tempo4_arr = librosa.beat.tempo(
-            onset_envelope=onset_env_complex, sr=sr, hop_length=hop_length,
-            start_bpm=80, max_tempo=180, aggregate='harmonic_mean'
-        )
-        tempo4 = _to_float(tempo4_arr)
-    except:
-        tempo4 = np.nan
+    if not onset_methods:
+        return 120.0
     
-    # Collect all valid tempos
-    tempos = [t for t in [tempo1, tempo2, tempo3, tempo4] if np.isfinite(t) and t > 0]
+    # Try beat tracking with each onset method
+    all_tempos = []
     
-    if not tempos:
-        return 120.0  # Default fallback
+    for method_name, onset_env in onset_methods:
+        # Method 1: Standard beat tracking
+        try:
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr, onset_envelope=onset_env, hop_length=hop_length)
+            tempo = _to_float(tempo)
+            if np.isfinite(tempo) and tempo > 0:
+                all_tempos.append(tempo)
+        except:
+            pass
+        
+        # Method 2: Tempo estimation with different aggregation
+        try:
+            tempo_arr = librosa.feature.rhythm.tempo(
+                onset_envelope=onset_env, sr=sr, hop_length=hop_length,
+                start_bpm=60, max_tempo=200, aggregate='mean'
+            )
+            tempo = _to_float(tempo_arr)
+            if np.isfinite(tempo) and tempo > 0:
+                all_tempos.append(tempo)
+        except:
+            pass
     
-    # Handle tempo disambiguation (half-time/double-time)
-    expanded_tempos = []
-    for t in tempos:
-        expanded_tempos.extend([t/2, t, t*2])
+    if not all_tempos:
+        return 120.0
     
-    # Find the most common tempo range
-    tempo_ranges = {}
-    for t in expanded_tempos:
-        if 60 <= t <= 200:  # Reasonable tempo range
-            key = round(t / 5) * 5  # Group into 5 BPM buckets
-            if key not in tempo_ranges:
-                tempo_ranges[key] = []
-            tempo_ranges[key].append(t)
+    # Remove outliers using IQR method
+    if len(all_tempos) > 2:
+        q25 = np.percentile(all_tempos, 25)
+        q75 = np.percentile(all_tempos, 75)
+        iqr = q75 - q25
+        lower_bound = q25 - 1.5 * iqr
+        upper_bound = q75 + 1.5 * iqr
+        all_tempos = [t for t in all_tempos if lower_bound <= t <= upper_bound]
     
-    if not tempo_ranges:
-        return np.median(tempos)
+    if not all_tempos:
+        return 120.0
     
-    # Return the median of the most populated range
-    best_range = max(tempo_ranges.keys(), key=lambda k: len(tempo_ranges[k]))
-    return np.median(tempo_ranges[best_range])
+    # Handle common tempo multiples/divisions
+    candidate_tempos = []
+    for tempo in all_tempos:
+        candidate_tempos.extend([tempo/2, tempo, tempo*2])
+    
+    # Filter to reasonable range
+    candidate_tempos = [t for t in candidate_tempos if 60 <= t <= 200]
+    
+    if not candidate_tempos:
+        return np.median(all_tempos)
+    
+    # Use mode-finding approach with bins
+    hist, bins = np.histogram(candidate_tempos, bins=28, range=(60, 200))  # 5 BPM bins
+    max_bin_idx = np.argmax(hist)
+    bin_center = (bins[max_bin_idx] + bins[max_bin_idx + 1]) / 2
+    
+    # Find all tempos close to the most common bin
+    tolerance = 7.0  # BPM
+    close_tempos = [t for t in candidate_tempos if abs(t - bin_center) <= tolerance]
+    
+    return np.median(close_tempos) if close_tempos else np.median(all_tempos)
 
 def estimate_key(y, sr):
     """Improved key estimation using multiple methods and harmonic analysis."""

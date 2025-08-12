@@ -582,6 +582,101 @@ func getAudioFilename(id, audioType string) string {
 	}
 }
 
+func handleDemoCommand() {
+	if len(os.Args) < 4 {
+		fmt.Println("Usage: starchive demo <id> <I|V>")
+		fmt.Println("Example: starchive demo NdYWuo9OFAw I  (instrumental)")
+		fmt.Println("         starchive demo NdYWuo9OFAw V  (vocals)")
+		fmt.Println("Creates a 30-second demo from the middle of the track with +3 pitch shift")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	audioType := os.Args[3]
+
+	inputPath := getAudioFilename(id, audioType)
+
+	// Check if input file exists
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
+		os.Exit(1)
+	}
+
+	// Get duration of the audio file
+	duration, err := getAudioDuration(inputPath)
+	if err != nil {
+		fmt.Printf("Error getting audio duration: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Calculate middle position for 30-second clip
+	startPosition := (duration - 30) / 2
+	if startPosition < 0 {
+		startPosition = 0
+	}
+
+	// Create temporary file path for 30-second clip
+	tempClipPath := fmt.Sprintf("/tmp/%s_%s_30sec.wav", id, audioType)
+	
+	// Create temporary file path for final demo
+	demoPath := fmt.Sprintf("./data/%s_%s_demo.wav", id, audioType)
+
+	// Determine track description for display
+	trackDesc := "main track"
+	switch audioType {
+	case "I", "instrumental", "instrumentals":
+		trackDesc = "instrumental track"
+	case "V", "vocal", "vocals":
+		trackDesc = "vocal track"
+	}
+
+	fmt.Printf("Creating demo for %s (%s)\n", id, trackDesc)
+	fmt.Printf("Extracting 30 seconds from position %.1fs...\n", startPosition)
+
+	// Extract 30 seconds from the middle using ffmpeg
+	extractCmd := exec.Command("ffmpeg", "-y",
+		"-ss", fmt.Sprintf("%.1f", startPosition),
+		"-t", "30",
+		"-i", inputPath,
+		"-c", "copy",
+		tempClipPath)
+
+	extractCmd.Stdout = os.Stdout
+	extractCmd.Stderr = os.Stderr
+
+	err = extractCmd.Run()
+	if err != nil {
+		fmt.Printf("Error extracting 30-second clip: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Applying +3 semitone pitch shift with rubberband...\n")
+
+	// Apply +3 semitone pitch shift using rubberband
+	pitchCmd := exec.Command("rubberband",
+		"--pitch", "3",
+		"--fine",
+		"--formant",
+		tempClipPath,
+		demoPath)
+
+	pitchCmd.Stdout = os.Stdout
+	pitchCmd.Stderr = os.Stderr
+
+	err = pitchCmd.Run()
+	if err != nil {
+		fmt.Printf("Error applying pitch shift: %v\n", err)
+		// Clean up temp file
+		os.Remove(tempClipPath)
+		os.Exit(1)
+	}
+
+	// Clean up temporary file
+	os.Remove(tempClipPath)
+
+	fmt.Printf("Successfully created demo: %s\n", demoPath)
+}
+
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
