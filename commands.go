@@ -311,6 +311,98 @@ func handleSyncCommand() {
 	}
 }
 
+func handleSplitCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive split <filename>")
+		fmt.Println("Example: starchive split beINamVRGy4_(Vocals)_UVR_MDXNET_Main_sync_to_qgaRVvAKoqQ.wav")
+		os.Exit(1)
+	}
+
+	filename := os.Args[2]
+	inputPath := fmt.Sprintf("./data/%s", filename)
+
+	// Check if input file exists
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
+		os.Exit(1)
+	}
+
+	// Extract ID from filename (part before first underscore)
+	id := strings.Split(filename, "_")[0]
+	if id == "" {
+		fmt.Printf("Error: Could not extract ID from filename %s\n", filename)
+		os.Exit(1)
+	}
+
+	// Create output directory
+	outputDir := fmt.Sprintf("./data/%s", id)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Printf("Error creating directory %s: %v\n", outputDir, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Extracting ID: %s\n", id)
+	fmt.Printf("Created directory: %s\n", outputDir)
+	fmt.Printf("Splitting %s by silence detection...\n", filename)
+
+	// First command: detect silence timestamps
+	silenceCmd := exec.Command("ffmpeg", "-hide_banner", "-i", inputPath,
+		"-af", "silencedetect=noise=-35dB:d=0.5", "-f", "null", "-")
+
+	silenceOutput, err := silenceCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error detecting silence: %v\n", err)
+		fmt.Printf("Output: %s\n", string(silenceOutput))
+		os.Exit(1)
+	}
+
+	// Extract silence end times using sed equivalent
+	sedCmd := exec.Command("sed", "-n", "s/.*silence_end: \\([0-9.]*\\).*/\\1/p")
+	sedCmd.Stdin = strings.NewReader(string(silenceOutput))
+	sedOutput, err := sedCmd.Output()
+	if err != nil {
+		fmt.Printf("Error extracting timestamps: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Convert to comma-separated list
+	timestamps := strings.TrimSpace(string(sedOutput))
+	timestamps = strings.ReplaceAll(timestamps, "\n", ",")
+
+	if timestamps == "" {
+		fmt.Printf("Warning: No silence detected. Creating single output file.\n")
+		// Copy the original file to the output directory
+		outputPath := fmt.Sprintf("%s/part_001.wav", outputDir)
+		copyCmd := exec.Command("cp", inputPath, outputPath)
+		if err := copyCmd.Run(); err != nil {
+			fmt.Printf("Error copying file: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Created: %s\n", outputPath)
+		return
+	}
+
+	fmt.Printf("Detected silence timestamps: %s\n", timestamps)
+
+	// Second command: split using detected timestamps
+	outputPattern := fmt.Sprintf("%s/part_%%03d.wav", outputDir)
+	splitCmd := exec.Command("ffmpeg", "-hide_banner", "-i", inputPath,
+		"-c", "copy", "-f", "segment", "-segment_times", timestamps, outputPattern)
+
+	fmt.Printf("Running: %s\n", splitCmd.String())
+
+	splitCmd.Stdout = os.Stdout
+	splitCmd.Stderr = os.Stderr
+
+	err = splitCmd.Run()
+	if err != nil {
+		fmt.Printf("Error splitting file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully split %s into parts in directory %s\n", filename, outputDir)
+}
+
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
