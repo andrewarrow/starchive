@@ -76,26 +76,55 @@ func handleBlendCommand() {
 	if len(os.Args) < 4 {
 		fmt.Println("Usage: starchive blend <id1> <id2>")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
-		fmt.Println("Plays two tracks simultaneously with random pitch/tempo adjustments for 10 seconds")
+		fmt.Println("Plays two tracks simultaneously with intelligent BPM/key-based adjustments for 10 seconds")
 		os.Exit(1)
 	}
 
 	id1 := os.Args[2]
 	id2 := os.Args[3]
 
+	db, err := initDatabase()
+	if err != nil {
+		fmt.Printf("Error initializing database: %v\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	metadata1, found1 := getCachedMetadata(db, id1)
+	metadata2, found2 := getCachedMetadata(db, id2)
+
 	rand.Seed(time.Now().UnixNano())
 
-	audioTypes := []string{"I", "V"}
-	type1 := audioTypes[rand.Intn(2)]
-	type2 := audioTypes[rand.Intn(2)]
+	var pitch1, tempo1, pitch2, tempo2 int
+	var type1, type2 string
 
-	pitchRange := []int{-8, -6, -4, -2, 0, 2, 4, 6, 8}
-	tempoRange := []int{-20, -15, -10, -5, 0, 5, 10, 15, 20}
+	if found1 && found2 && metadata1.BPM != nil && metadata2.BPM != nil && metadata1.Key != nil && metadata2.Key != nil {
+		bpm1 := *metadata1.BPM
+		bpm2 := *metadata2.BPM
+		key1 := *metadata1.Key
+		key2 := *metadata2.Key
+		
+		fmt.Printf("Using intelligent blending:\n")
+		fmt.Printf("  Track 1 (%s): %.1f BPM, %s\n", id1, bpm1, key1)
+		fmt.Printf("  Track 2 (%s): %.1f BPM, %s\n", id2, bpm2, key2)
 
-	pitch1 := pitchRange[rand.Intn(len(pitchRange))]
-	tempo1 := tempoRange[rand.Intn(len(tempoRange))]
-	pitch2 := pitchRange[rand.Intn(len(pitchRange))]
-	tempo2 := tempoRange[rand.Intn(len(tempoRange))]
+		pitch1, tempo1, type1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2, 1)
+		pitch2, tempo2, type2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1, 2)
+	} else {
+		fmt.Printf("BPM/key data not available, using random adjustments\n")
+		
+		audioTypes := []string{"I", "V"}
+		type1 = audioTypes[rand.Intn(2)]
+		type2 = audioTypes[rand.Intn(2)]
+
+		pitchRange := []int{-8, -6, -4, -2, 0, 2, 4, 6, 8}
+		tempoRange := []int{-20, -15, -10, -5, 0, 5, 10, 15, 20}
+
+		pitch1 = pitchRange[rand.Intn(len(pitchRange))]
+		tempo1 = tempoRange[rand.Intn(len(tempoRange))]
+		pitch2 = pitchRange[rand.Intn(len(pitchRange))]
+		tempo2 = tempoRange[rand.Intn(len(tempoRange))]
+	}
 
 	inputPath1 := getAudioFilename(id1, type1)
 	inputPath2 := getAudioFilename(id2, type2)
@@ -227,4 +256,64 @@ func playTempFile(filePath string) {
 	waitForKeyPress()
 	cancel()
 	fmt.Println("Preview stopped.")
+}
+
+func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string, trackNum int) (int, int, string) {
+	pitch := calculateKeyDifference(sourceKey, targetKey)
+	
+	bpmRatio := targetBPM / sourceBPM
+	var tempo int
+	if bpmRatio > 1.25 {
+		tempo = -15
+	} else if bpmRatio > 1.10 {
+		tempo = -8
+	} else if bpmRatio < 0.8 {
+		tempo = 20
+	} else if bpmRatio < 0.9 {
+		tempo = 10
+	} else {
+		tempo = 0
+	}
+	
+	var audioType string
+	if trackNum == 1 {
+		if sourceBPM < targetBPM {
+			audioType = "V"
+		} else {
+			audioType = "I"
+		}
+	} else {
+		if sourceBPM > targetBPM {
+			audioType = "V"
+		} else {
+			audioType = "I"
+		}
+	}
+	
+	return pitch, tempo, audioType
+}
+
+func calculateKeyDifference(key1, key2 string) int {
+	keyMap := map[string]int{
+		"C major": 0, "G major": 7, "D major": 2, "A major": 9, "E major": 4, "B major": 11,
+		"F# major": 6, "Db major": 1, "Ab major": 8, "Eb major": 3, "Bb major": 10, "F major": 5,
+		"A minor": 9, "E minor": 4, "B minor": 11, "F# minor": 6, "C# minor": 1, "G# minor": 8,
+		"Eb minor": 3, "Bb minor": 10, "F minor": 5, "C minor": 0, "G minor": 7, "D minor": 2,
+	}
+	
+	val1, exists1 := keyMap[key1]
+	val2, exists2 := keyMap[key2]
+	
+	if !exists1 || !exists2 {
+		return 0
+	}
+	
+	diff := val2 - val1
+	if diff > 6 {
+		diff -= 12
+	} else if diff < -6 {
+		diff += 12
+	}
+	
+	return diff
 }
