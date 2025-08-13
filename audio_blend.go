@@ -267,6 +267,7 @@ func (bs *BlendShell) run() {
 	fmt.Printf("  match bpm2to1        Match track 2 BPM to track 1\n")
 	fmt.Printf("  match key1to2        Match track 1 key to track 2\n")
 	fmt.Printf("  match key2to1        Match track 2 key to track 1\n")
+	fmt.Printf("  invert               Reset and intelligently match tracks\n")
 	fmt.Printf("  type1 <vocal|instrumental> Set track 1 type\n")
 	fmt.Printf("  type2 <vocal|instrumental> Set track 2 type\n")
 	fmt.Printf("  reset                Reset all adjustments\n")
@@ -480,6 +481,9 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Usage: match <bpm1to2|bpm2to1|key1to2|key2to1>\n")
 		}
 		
+	case "invert":
+		bs.handleInvertCommand()
+		
 	default:
 		fmt.Printf("Unknown command: %s (type help for commands)\n", cmd)
 	}
@@ -550,6 +554,53 @@ func (bs *BlendShell) handleMatchCommand(matchType string) {
 	}
 }
 
+func (bs *BlendShell) handleInvertCommand() {
+	if bs.metadata1 == nil || bs.metadata2 == nil {
+		fmt.Printf("Cannot invert - missing metadata\n")
+		return
+	}
+	
+	fmt.Printf("Inverting current match state...\n")
+	
+	// Reset first
+	bs.resetAdjustments()
+	
+	// Determine current dominant track and invert
+	if bs.metadata1.BPM != nil && bs.metadata2.BPM != nil && bs.metadata1.Key != nil && bs.metadata2.Key != nil {
+		bpm1 := *bs.metadata1.BPM
+		bpm2 := *bs.metadata2.BPM
+		key1 := *bs.metadata1.Key
+		key2 := *bs.metadata2.Key
+		
+		// Check if BPM1 > BPM2, then match bpm1to2, otherwise bpm2to1
+		if bpm1 > bpm2 {
+			bs.handleMatchCommand("bpm1to2")
+		} else {
+			bs.handleMatchCommand("bpm2to1")
+		}
+		
+		// For key matching, use alphabetical order or complexity as heuristic
+		// If key1 is "simpler" (fewer sharps/flats), match key1to2, otherwise key2to1
+		keyComplexity1 := bs.getKeyComplexity(key1)
+		keyComplexity2 := bs.getKeyComplexity(key2)
+		
+		if keyComplexity1 <= keyComplexity2 {
+			bs.handleMatchCommand("key1to2")
+		} else {
+			bs.handleMatchCommand("key2to1")
+		}
+	} else {
+		fmt.Printf("BPM or Key data not available for invert\n")
+	}
+}
+
+func (bs *BlendShell) getKeyComplexity(key string) int {
+	// Count sharps and flats to determine key complexity
+	sharps := strings.Count(key, "#")
+	flats := strings.Count(key, "b")
+	return sharps + flats
+}
+
 func (bs *BlendShell) showStatus() {
 	fmt.Printf("--- Current Settings ---\n")
 	fmt.Printf("Track 1 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%, window %+.1fs\n", 
@@ -589,6 +640,7 @@ func (bs *BlendShell) showHelp() {
 	fmt.Printf("  match bpm2to1       Match track 2 BPM to track 1\n")
 	fmt.Printf("  match key1to2       Match track 1 key to track 2\n")
 	fmt.Printf("  match key2to1       Match track 2 key to track 1\n")
+	fmt.Printf("  invert              Reset and intelligently match tracks\n")
 	fmt.Printf("Track Types:\n")
 	fmt.Printf("  type1 <type>        Set track 1 type (vocal/instrumental)\n")
 	fmt.Printf("  type2 <type>        Set track 2 type (vocal/instrumental)\n")
