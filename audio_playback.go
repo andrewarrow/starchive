@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -355,13 +356,13 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2
 			// Make track 1 BPM match track 2's effective BPM
 			effectiveBPM2 := calculateEffectiveBPM(originalBPM2, baseTempo2 + tempo2Adj)
 			requiredRatio := effectiveBPM2 / originalBPM1
-			tempo1Adj = int((requiredRatio - 1.0) * 100.0) - baseTempo1
+			tempo1Adj = int(math.Round((requiredRatio - 1.0) * 100.0)) - baseTempo1
 			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", effectiveBPM2)
 		} else if adj == "match2to1" {
 			// Make track 2 BPM match track 1's effective BPM
 			effectiveBPM1 := calculateEffectiveBPM(originalBPM1, baseTempo1 + tempo1Adj)
 			requiredRatio := effectiveBPM1 / originalBPM2
-			tempo2Adj = int((requiredRatio - 1.0) * 100.0) - baseTempo2
+			tempo2Adj = int(math.Round((requiredRatio - 1.0) * 100.0)) - baseTempo2
 			fmt.Printf("BPM Match: Setting track 2 to %.1f BPM to match track 1\n", effectiveBPM1)
 		}
 	}
