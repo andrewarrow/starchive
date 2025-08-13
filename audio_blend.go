@@ -640,28 +640,49 @@ func detectTrackTypes(id1, id2 string) (string, string) {
 
 	var type1, type2 string
 
-	if !id1HasVocal && id1HasInstrumental {
-		type1 = "I"
-	} else if id1HasVocal && !id1HasInstrumental {
-		type1 = "V"
-	} else if id1HasVocal && id1HasInstrumental {
-		type1 = "I"
-	} else {
-		type1 = "I"
-	}
-
+	// If one track only has instrumental, make the other vocal (if possible)
 	if !id2HasVocal && id2HasInstrumental {
+		// Track 2 is instrumental-only, prefer vocal for track 1
+		if id1HasVocal {
+			type1 = "V"
+		} else {
+			type1 = "I"
+		}
 		type2 = "I"
-	} else if id2HasVocal && !id2HasInstrumental {
-		type2 = "V"
-	} else if id2HasVocal && id2HasInstrumental {
-		if type1 == "I" {
+	} else if !id1HasVocal && id1HasInstrumental {
+		// Track 1 is instrumental-only, prefer vocal for track 2
+		type1 = "I"
+		if id2HasVocal {
 			type2 = "V"
 		} else {
 			type2 = "I"
 		}
 	} else {
-		type2 = "I"
+		// Both tracks have options, choose complementary types
+		if id1HasVocal && !id1HasInstrumental {
+			type1 = "V"
+		} else if !id1HasVocal && id1HasInstrumental {
+			type1 = "I"
+		} else if id1HasVocal && id1HasInstrumental {
+			type1 = "V"  // Default to vocal for track 1
+		} else {
+			type1 = "I"  // Fallback
+		}
+
+		if id2HasVocal && !id2HasInstrumental {
+			type2 = "V"
+		} else if !id2HasVocal && id2HasInstrumental {
+			type2 = "I"
+		} else if id2HasVocal && id2HasInstrumental {
+			// Choose opposite of track 1
+			if type1 == "V" {
+				type2 = "I"
+			} else {
+				type2 = "V"
+			}
+		} else {
+			type2 = "I"  // Fallback
+		}
 	}
 
 	return type1, type2
