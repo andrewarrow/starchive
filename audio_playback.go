@@ -79,9 +79,11 @@ func handleBlendCommand() {
 		fmt.Println("Usage: starchive blend <id1> <id2> [adjustments...]")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
 		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s I+tempo V-pitch")
-		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s match2to1")
+		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s bpm2to1 key1to2")
 		fmt.Println("Adjustments: I+tempo, I-tempo, V+tempo, V-tempo, I+pitch, I-pitch, V+pitch, V-pitch")
-		fmt.Println("            match1to2 (sync track 1 BPM to track 2), match2to1 (sync track 2 BPM to track 1)")
+		fmt.Println("Matching:")
+		fmt.Println("  bpm1to2, bpm2to1 (sync BPM between tracks)")
+		fmt.Println("  key1to2, key2to1 (sync key between tracks)")
 		fmt.Println("Plays two tracks simultaneously with intelligent BPM/key-based adjustments for 10 seconds")
 		os.Exit(1)
 	}
@@ -121,7 +123,7 @@ func handleBlendCommand() {
 		pitch1, tempo1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2)
 		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
 		
-		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments, bpm1, bpm2)
+		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments, bpm1, bpm2, metadata1, metadata2)
 		
 		effectiveBPM1 := calculateEffectiveBPM(bpm1, tempo1)
 		effectiveBPM2 := calculateEffectiveBPM(bpm2, tempo2)
@@ -345,21 +347,21 @@ func getOrAssignTrackTypes(id1, id2 string) (string, string) {
 	return type1, type2
 }
 
-func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64, basePitch2 int, baseTempo2 float64, type1, type2 string, adjustments []string, originalBPM1, originalBPM2 float64) (int, float64, int, float64) {
+func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64, basePitch2 int, baseTempo2 float64, type1, type2 string, adjustments []string, originalBPM1, originalBPM2 float64, metadata1, metadata2 *VideoMetadata) (int, float64, int, float64) {
 	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
 	
 	// Load existing adjustments
 	pitch1Adj, tempo1Adj, pitch2Adj, tempo2Adj := loadAccumulatedAdjustments(tmpFile)
 	
-	// Check for BPM matching first
+	// Check for BPM and key matching first
 	for _, adj := range adjustments {
-		if adj == "match1to2" {
+		if adj == "bpm1to2" || adj == "match1to2" {
 			// Make track 1 BPM match track 2's effective BPM
 			effectiveBPM2 := calculateEffectiveBPM(originalBPM2, baseTempo2 + tempo2Adj)
 			requiredRatio := effectiveBPM2 / originalBPM1
 			tempo1Adj = math.Round((requiredRatio - 1.0) * 100.0) - baseTempo1
 			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", effectiveBPM2)
-		} else if adj == "match2to1" {
+		} else if adj == "bpm2to1" || adj == "match2to1" {
 			// Make track 2 BPM match track 1's effective BPM with exact precision
 			effectiveBPM1 := calculateEffectiveBPM(originalBPM1, baseTempo1 + tempo1Adj)
 			requiredRatio := effectiveBPM1 / originalBPM2
@@ -367,12 +369,23 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64
 			tempo2Adj = requiredTotalTempo - baseTempo2
 			
 			fmt.Printf("BPM Match: Setting track 2 to exactly %.1f BPM to match track 1\n", effectiveBPM1)
+		} else if adj == "key1to2" {
+			// Make track 1 key match track 2's original key
+			keyDiff := calculateKeyDifference(*metadata1.Key, *metadata2.Key)
+			pitch1Adj = keyDiff - basePitch1
+			fmt.Printf("Key Match: Setting track 1 to %s to match track 2\n", *metadata2.Key)
+		} else if adj == "key2to1" {
+			// Make track 2 key match track 1's original key
+			keyDiff := calculateKeyDifference(*metadata2.Key, *metadata1.Key)
+			pitch2Adj = keyDiff - basePitch2
+			fmt.Printf("Key Match: Setting track 2 to %s to match track 1\n", *metadata1.Key)
 		}
 	}
 	
 	// Apply other adjustments
 	for _, adj := range adjustments {
-		if adj == "match1to2" || adj == "match2to1" {
+		if adj == "bpm1to2" || adj == "bpm2to1" || adj == "key1to2" || adj == "key2to1" || 
+		   adj == "match1to2" || adj == "match2to1" {
 			continue
 		}
 		if len(adj) < 3 {
