@@ -202,15 +202,17 @@ func handleBlendCommand() {
 	
 	if pitch1 != 0 || tempo1 != 0 {
 		var filters []string
-		if pitch1 != 0 {
-			pitchMultiplier := 1.0 + (float64(pitch1) / 12.0)
-			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100", pitchMultiplier))
-		}
 		if tempo1 != 0 {
 			tempoMultiplier := 1.0 + (tempo1 / 100.0)
 			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
 				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
 			}
+		}
+		if pitch1 != 0 {
+			// Use rubberband-style pitch shifting that preserves tempo
+			pitchSemitones := float64(pitch1)
+			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
+				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
 		}
 		if len(filters) > 0 {
 			filter := strings.Join(filters, ",")
@@ -230,15 +232,17 @@ func handleBlendCommand() {
 	
 	if pitch2 != 0 || tempo2 != 0 {
 		var filters []string
-		if pitch2 != 0 {
-			pitchMultiplier := 1.0 + (float64(pitch2) / 12.0)
-			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100", pitchMultiplier))
-		}
 		if tempo2 != 0 {
 			tempoMultiplier := 1.0 + (tempo2 / 100.0)
 			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
 				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
 			}
+		}
+		if pitch2 != 0 {
+			// Use rubberband-style pitch shifting that preserves tempo
+			pitchSemitones := float64(pitch2)
+			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
+				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
 		}
 		if len(filters) > 0 {
 			filter := strings.Join(filters, ",")
