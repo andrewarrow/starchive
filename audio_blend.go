@@ -183,6 +183,7 @@ type BlendShell struct {
 	window1, window2   float64
 	inputPath1, inputPath2 string
 	db                 *sql.DB
+	previousBPMMatch, previousKeyMatch string
 }
 
 func newBlendShell(id1, id2 string) *BlendShell {
@@ -562,35 +563,20 @@ func (bs *BlendShell) handleInvertCommand() {
 	
 	fmt.Printf("Inverting current match state...\n")
 	
-	// Reset first
-	bs.resetAdjustments()
+	// Save current state to determine what was matched
+	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.id1, bs.id2)
 	
-	// Determine current dominant track and invert
-	if bs.metadata1.BPM != nil && bs.metadata2.BPM != nil && bs.metadata1.Key != nil && bs.metadata2.Key != nil {
-		bpm1 := *bs.metadata1.BPM
-		bpm2 := *bs.metadata2.BPM
-		key1 := *bs.metadata1.Key
-		key2 := *bs.metadata2.Key
-		
-		// Check if BPM1 > BPM2, then match bpm1to2, otherwise bpm2to1
-		if bpm1 > bpm2 {
-			bs.handleMatchCommand("bpm1to2")
-		} else {
-			bs.handleMatchCommand("bpm2to1")
-		}
-		
-		// For key matching, use alphabetical order or complexity as heuristic
-		// If key1 is "simpler" (fewer sharps/flats), match key1to2, otherwise key2to1
-		keyComplexity1 := bs.getKeyComplexity(key1)
-		keyComplexity2 := bs.getKeyComplexity(key2)
-		
-		if keyComplexity1 <= keyComplexity2 {
-			bs.handleMatchCommand("key1to2")
-		} else {
-			bs.handleMatchCommand("key2to1")
-		}
+	// Check if we have a previous state to invert from
+	if bs.loadInvertState(stateFile) {
+		// We have previous state, so invert it
+		bs.applyInvertedState()
 	} else {
-		fmt.Printf("BPM or Key data not available for invert\n")
+		// No previous state, save current and apply default invert
+		bs.saveInvertState(stateFile)
+		bs.resetAdjustments()
+		// Default: match bpm2to1 and key2to1
+		bs.handleMatchCommand("bpm2to1")
+		bs.handleMatchCommand("key2to1")
 	}
 }
 
@@ -599,6 +585,75 @@ func (bs *BlendShell) getKeyComplexity(key string) int {
 	sharps := strings.Count(key, "#")
 	flats := strings.Count(key, "b")
 	return sharps + flats
+}
+
+type InvertState struct {
+	BPMMatch string
+	KeyMatch string
+}
+
+func (bs *BlendShell) saveInvertState(stateFile string) {
+	// Determine current match state based on adjustments
+	var bmpMatch, keyMatch string
+	
+	if bs.tempo1 != 0 && bs.tempo2 == 0 {
+		bmpMatch = "bpm1to2"
+	} else if bs.tempo2 != 0 && bs.tempo1 == 0 {
+		bmpMatch = "bpm2to1"
+	} else {
+		bmpMatch = "none"
+	}
+	
+	if bs.pitch1 != 0 && bs.pitch2 == 0 {
+		keyMatch = "key1to2"
+	} else if bs.pitch2 != 0 && bs.pitch1 == 0 {
+		keyMatch = "key2to1"
+	} else {
+		keyMatch = "none"
+	}
+	
+	content := fmt.Sprintf("%s,%s", bmpMatch, keyMatch)
+	os.WriteFile(stateFile, []byte(content), 0644)
+}
+
+func (bs *BlendShell) loadInvertState(stateFile string) bool {
+	data, err := os.ReadFile(stateFile)
+	if err != nil {
+		return false
+	}
+	
+	parts := strings.Split(string(data), ",")
+	if len(parts) != 2 {
+		return false
+	}
+	
+	bs.previousBPMMatch = parts[0]
+	bs.previousKeyMatch = parts[1]
+	return true
+}
+
+func (bs *BlendShell) applyInvertedState() {
+	bs.resetAdjustments()
+	
+	// Invert BPM match
+	switch bs.previousBPMMatch {
+	case "bpm1to2":
+		bs.handleMatchCommand("bpm2to1")
+	case "bpm2to1":
+		bs.handleMatchCommand("bpm1to2")
+	}
+	
+	// Invert key match
+	switch bs.previousKeyMatch {
+	case "key1to2":
+		bs.handleMatchCommand("key2to1")
+	case "key2to1":
+		bs.handleMatchCommand("key1to2")
+	}
+	
+	// Clear the state file so next invert toggles back
+	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.id1, bs.id2)
+	os.Remove(stateFile)
 }
 
 func (bs *BlendShell) showStatus() {
