@@ -179,6 +179,7 @@ type BlendShell struct {
 	tempo1, tempo2     float64
 	volume1, volume2   float64
 	duration1, duration2 float64
+	window1, window2   float64
 	inputPath1, inputPath2 string
 	db                 *sql.DB
 }
@@ -215,6 +216,8 @@ func newBlendShell(id1, id2 string) *BlendShell {
 		tempo2:    0.0,
 		volume1:   100.0,
 		volume2:   100.0,
+		window1:   0.0,
+		window2:   0.0,
 		db:        db,
 	}
 
@@ -258,6 +261,7 @@ func (bs *BlendShell) run() {
 	fmt.Printf("  /tempo2 <n>          Adjust track 2 tempo (%%)\n")
 	fmt.Printf("  /volume1 <n>         Set track 1 volume (0-200)\n")
 	fmt.Printf("  /volume2 <n>         Set track 2 volume (0-200)\n")
+	fmt.Printf("  /window <n1> <n2>    Set track start offsets from middle (seconds)\n")
 	fmt.Printf("  /match bpm1to2       Match track 1 BPM to track 2\n")
 	fmt.Printf("  /match bpm2to1       Match track 2 BPM to track 1\n")
 	fmt.Printf("  /match key1to2       Match track 1 key to track 2\n")
@@ -433,6 +437,24 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 2 type: %s\n", bs.getTrackTypeDesc(bs.type2))
 		}
 		
+	case "/window":
+		if len(args) >= 2 {
+			if val1, err1 := strconv.ParseFloat(args[0], 64); err1 == nil {
+				if val2, err2 := strconv.ParseFloat(args[1], 64); err2 == nil {
+					bs.window1 = val1
+					bs.window2 = val2
+					fmt.Printf("Window offsets: track 1 %+.1fs, track 2 %+.1fs\n", bs.window1, bs.window2)
+				} else {
+					fmt.Printf("Invalid window offset for track 2: %s\n", args[1])
+				}
+			} else {
+				fmt.Printf("Invalid window offset for track 1: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Usage: /window <track1_offset> <track2_offset>\n")
+			fmt.Printf("Current window offsets: track 1 %+.1fs, track 2 %+.1fs\n", bs.window1, bs.window2)
+		}
+		
 	case "/match":
 		if len(args) > 0 {
 			bs.handleMatchCommand(args[0])
@@ -512,10 +534,10 @@ func (bs *BlendShell) handleMatchCommand(matchType string) {
 
 func (bs *BlendShell) showStatus() {
 	fmt.Printf("--- Current Settings ---\n")
-	fmt.Printf("Track 1 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%\n", 
-		bs.id1, bs.getTrackTypeDesc(bs.type1), bs.pitch1, bs.tempo1, bs.volume1)
-	fmt.Printf("Track 2 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%\n", 
-		bs.id2, bs.getTrackTypeDesc(bs.type2), bs.pitch2, bs.tempo2, bs.volume2)
+	fmt.Printf("Track 1 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%, window %+.1fs\n", 
+		bs.id1, bs.getTrackTypeDesc(bs.type1), bs.pitch1, bs.tempo1, bs.volume1, bs.window1)
+	fmt.Printf("Track 2 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%, window %+.1fs\n", 
+		bs.id2, bs.getTrackTypeDesc(bs.type2), bs.pitch2, bs.tempo2, bs.volume2, bs.window2)
 		
 	if bs.metadata1 != nil && bs.metadata1.BPM != nil && bs.metadata1.Key != nil {
 		effectiveBPM1 := calculateEffectiveBPM(*bs.metadata1.BPM, bs.tempo1)
@@ -543,6 +565,7 @@ func (bs *BlendShell) showHelp() {
 	fmt.Printf("  /tempo2 <n>         Adjust track 2 tempo (-50 to +100%%)\n")
 	fmt.Printf("  /volume1 <n>        Set track 1 volume (0 to 200)\n")
 	fmt.Printf("  /volume2 <n>        Set track 2 volume (0 to 200)\n")
+	fmt.Printf("  /window <n1> <n2>   Set start offsets from middle (seconds)\n")
 	fmt.Printf("Matching:\n")
 	fmt.Printf("  /match bpm1to2      Match track 1 BPM to track 2\n")
 	fmt.Printf("  /match bpm2to1      Match track 2 BPM to track 1\n")
@@ -565,6 +588,8 @@ func (bs *BlendShell) resetAdjustments() {
 	bs.tempo2 = 0.0
 	bs.volume1 = 100.0
 	bs.volume2 = 100.0
+	bs.window1 = 0.0
+	bs.window2 = 0.0
 	fmt.Printf("All adjustments reset to defaults\n")
 }
 
@@ -576,8 +601,22 @@ func (bs *BlendShell) getTrackTypeDesc(trackType string) string {
 }
 
 func (bs *BlendShell) playBlend() {
-	startPosition1 := bs.duration1 / 2
-	startPosition2 := bs.duration2 / 2
+	startPosition1 := (bs.duration1 / 2) + bs.window1
+	startPosition2 := (bs.duration2 / 2) + bs.window2
+	
+	if startPosition1 < 0 {
+		startPosition1 = 0
+	}
+	if startPosition2 < 0 {
+		startPosition2 = 0
+	}
+	
+	if startPosition1 >= bs.duration1 {
+		startPosition1 = bs.duration1 - 1
+	}
+	if startPosition2 >= bs.duration2 {
+		startPosition2 = bs.duration2 - 1
+	}
 
 	fmt.Printf("Playing blend for 10 seconds...\n")
 
