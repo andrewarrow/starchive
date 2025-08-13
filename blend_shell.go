@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chzyer/readline"
 )
@@ -86,7 +87,7 @@ func (bs *BlendShell) run() {
 	}
 	
 	fmt.Printf("\nCommands:\n")
-	fmt.Printf("  play                 Play current blend (press any key to stop)\n")
+	fmt.Printf("  play [start_pos]     Play current blend (press any key to stop)\n")
 	fmt.Printf("  pitch1 <n>           Adjust track 1 pitch (semitones)\n")
 	fmt.Printf("  pitch2 <n>           Adjust track 2 pitch (semitones)\n")
 	fmt.Printf("  tempo1 <n>           Adjust track 1 tempo (%%)\n")
@@ -247,7 +248,8 @@ func (bs *BlendShell) showStatus() {
 func (bs *BlendShell) showHelp() {
 	fmt.Printf("--- Blend Shell Commands ---\n")
 	fmt.Printf("Playback:\n")
-	fmt.Printf("  play                Play current blend (press any key to stop)\n")
+	fmt.Printf("  play [start_pos]    Play current blend (press any key to stop)\n")
+	fmt.Printf("                      start_pos: seconds (default: middle, 0 = beginning)\n")
 	fmt.Printf("Adjustments:\n")
 	fmt.Printf("  pitch1 <n>          Adjust track 1 pitch (-12 to +12 semitones)\n")
 	fmt.Printf("  pitch2 <n>          Adjust track 2 pitch (-12 to +12 semitones)\n")
@@ -300,8 +302,22 @@ func (bs *BlendShell) getTrackTypeDesc(trackType string) string {
 }
 
 func (bs *BlendShell) playBlend() {
-	startPosition1 := (bs.duration1 / 2) + bs.window1
-	startPosition2 := (bs.duration2 / 2) + bs.window2
+	bs.playBlendWithStart(-1)
+}
+
+func (bs *BlendShell) playBlendWithStart(startFrom float64) {
+	// Determine start positions
+	var startPosition1, startPosition2 float64
+	
+	if startFrom < 0 {
+		// Use middle + window offsets (default behavior)
+		startPosition1 = (bs.duration1 / 2) + bs.window1
+		startPosition2 = (bs.duration2 / 2) + bs.window2
+	} else {
+		// Use specified position + window offsets
+		startPosition1 = startFrom + bs.window1
+		startPosition2 = startFrom + bs.window2
+	}
 	
 	if startPosition1 < 0 {
 		startPosition1 = 0
@@ -325,8 +341,26 @@ func (bs *BlendShell) playBlend() {
 		maxAvailableDuration = remainingDuration2
 	}
 
-	fmt.Printf("Playing blend... Press any key to stop.\n")
+	// Check for active segments
+	activeSegments1 := 0
+	activeSegments2 := 0
+	for _, seg := range bs.segments1 {
+		if seg.Active { activeSegments1++ }
+	}
+	for _, seg := range bs.segments2 {
+		if seg.Active { activeSegments2++ }
+	}
 
+	if activeSegments1 > 0 || activeSegments2 > 0 {
+		fmt.Printf("Playing blend with %d+%d active segments... Press any key to stop.\n", activeSegments1, activeSegments2)
+		bs.playBlendWithSegments(startPosition1, startPosition2, maxAvailableDuration)
+	} else {
+		fmt.Printf("Playing blend... Press any key to stop.\n")
+		bs.playBlendBasic(startPosition1, startPosition2, maxAvailableDuration)
+	}
+}
+
+func (bs *BlendShell) playBlendBasic(startPosition1, startPosition2, maxAvailableDuration float64) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -352,6 +386,143 @@ func (bs *BlendShell) playBlend() {
 
 	<-ctx.Done()
 	fmt.Printf("Playback stopped.\n\n")
+}
+
+func (bs *BlendShell) playBlendWithSegments(startPosition1, startPosition2, maxAvailableDuration float64) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Play base tracks
+	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1, maxAvailableDuration)
+	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2, maxAvailableDuration)
+
+	go func() {
+		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
+		cmd1.Run()
+	}()
+
+	go func() {
+		cmd2 := exec.CommandContext(ctx, "ffplay", ffplayArgs2...)
+		cmd2.Run()
+	}()
+	
+	// Play active segments
+	bs.playActiveSegments(ctx, startPosition1, startPosition2, maxAvailableDuration)
+
+	// Wait for any key press
+	go func() {
+		var input string
+		fmt.Scanf("%s", &input)
+		cancel()
+	}()
+
+	<-ctx.Done()
+	fmt.Printf("Playback stopped.\n\n")
+}
+
+func (bs *BlendShell) playActiveSegments(ctx context.Context, startPosition1, startPosition2, maxAvailableDuration float64) {
+	
+	// Play active segments from track 1
+	for _, seg := range bs.segments1 {
+		if !seg.Active {
+			continue
+		}
+		
+		// Check if segment should play during our playback window
+		segmentStart := seg.Placement
+		segmentEnd := seg.Placement + seg.Duration
+		playbackEnd := startPosition1 + maxAvailableDuration
+		
+		// Skip if segment is completely outside our playback window
+		if segmentEnd < startPosition1 || segmentStart > playbackEnd {
+			continue
+		}
+		
+		// Calculate delay and duration for this segment
+		var delay float64
+		var segmentDuration float64 = seg.Duration
+		
+		if segmentStart >= startPosition1 {
+			delay = segmentStart - startPosition1
+		} else {
+			// Segment started before our window, need to seek into it
+			delay = 0
+			segmentDuration = segmentEnd - startPosition1
+		}
+		
+		// Launch segment playback with delay
+		go func(segment VocalSegment, delaySeconds float64, duration float64) {
+			if delaySeconds > 0 {
+				select {
+				case <-time.After(time.Duration(delaySeconds * 1000) * time.Millisecond):
+				case <-ctx.Done():
+					return
+				}
+			}
+			
+			segmentPath := fmt.Sprintf("%s/part_%03d.wav", bs.segmentsDir1, segment.Index)
+			if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
+				return
+			}
+			
+			cmd := exec.CommandContext(ctx, "ffplay", 
+				"-t", fmt.Sprintf("%.1f", duration),
+				"-autoexit", "-nodisp", "-loglevel", "quiet", 
+				segmentPath)
+			cmd.Run()
+		}(seg, delay, segmentDuration)
+	}
+	
+	// Play active segments from track 2
+	for _, seg := range bs.segments2 {
+		if !seg.Active {
+			continue
+		}
+		
+		// Check if segment should play during our playback window
+		segmentStart := seg.Placement
+		segmentEnd := seg.Placement + seg.Duration
+		playbackEnd := startPosition2 + maxAvailableDuration
+		
+		// Skip if segment is completely outside our playback window
+		if segmentEnd < startPosition2 || segmentStart > playbackEnd {
+			continue
+		}
+		
+		// Calculate delay and duration for this segment
+		var delay float64
+		var segmentDuration float64 = seg.Duration
+		
+		if segmentStart >= startPosition2 {
+			delay = segmentStart - startPosition2
+		} else {
+			// Segment started before our window, need to seek into it
+			delay = 0
+			segmentDuration = segmentEnd - startPosition2
+		}
+		
+		// Launch segment playback with delay
+		go func(segment VocalSegment, delaySeconds float64, duration float64) {
+			if delaySeconds > 0 {
+				select {
+				case <-time.After(time.Duration(delaySeconds * 1000) * time.Millisecond):
+				case <-ctx.Done():
+					return
+				}
+			}
+			
+			segmentPath := fmt.Sprintf("%s/part_%03d.wav", bs.segmentsDir2, segment.Index)
+			if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
+				return
+			}
+			
+			cmd := exec.CommandContext(ctx, "ffplay", 
+				"-t", fmt.Sprintf("%.1f", duration),
+				"-autoexit", "-nodisp", "-loglevel", "quiet", 
+				segmentPath)
+			cmd.Run()
+		}(seg, delay, segmentDuration)
+	}
 }
 
 func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch int, tempo float64, volume float64, playDuration float64) []string {

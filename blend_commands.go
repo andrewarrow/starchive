@@ -29,7 +29,15 @@ func (bs *BlendShell) handleCommand(input string) bool {
 		bs.showHelp()
 		
 	case "play", "p":
-		bs.playBlend()
+		if len(args) > 0 {
+			if startPos, err := strconv.ParseFloat(args[0], 64); err == nil {
+				bs.playBlendWithStart(startPos)
+			} else {
+				fmt.Printf("Invalid start position: %s\n", args[0])
+			}
+		} else {
+			bs.playBlendWithStart(-1) // -1 means use default (middle)
+		}
 		
 	case "status", "s":
 		bs.showStatus()
