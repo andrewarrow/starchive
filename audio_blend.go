@@ -290,6 +290,7 @@ func (bs *BlendShell) run() {
 	config := &readline.Config{
 		Prompt:      "blend> ",
 		HistoryFile: historyFile,
+		AutoComplete: bs.completer(),
 	}
 	
 	rl, err := readline.NewEx(config)
@@ -662,6 +663,38 @@ func (bs *BlendShell) applyInvertedState() {
 	// Clear the state file so next invert toggles back
 	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.id1, bs.id2)
 	os.Remove(stateFile)
+}
+
+func (bs *BlendShell) completer() readline.AutoCompleter {
+	return readline.NewPrefixCompleter(
+		readline.PcItem("play"),
+		readline.PcItem("pitch1"),
+		readline.PcItem("pitch2"), 
+		readline.PcItem("tempo1"),
+		readline.PcItem("tempo2"),
+		readline.PcItem("volume1"),
+		readline.PcItem("volume2"),
+		readline.PcItem("window"),
+		readline.PcItem("match",
+			readline.PcItem("bpm1to2"),
+			readline.PcItem("bpm2to1"),
+			readline.PcItem("key1to2"),
+			readline.PcItem("key2to1"),
+		),
+		readline.PcItem("type1",
+			readline.PcItem("vocal"),
+			readline.PcItem("instrumental"),
+		),
+		readline.PcItem("type2",
+			readline.PcItem("vocal"),
+			readline.PcItem("instrumental"),
+		),
+		readline.PcItem("invert"),
+		readline.PcItem("reset"),
+		readline.PcItem("status"),
+		readline.PcItem("help"),
+		readline.PcItem("exit"),
+	)
 }
 
 func (bs *BlendShell) showStatus() {
