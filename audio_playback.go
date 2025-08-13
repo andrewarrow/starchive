@@ -464,19 +464,19 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64
 	// Check for BPM and key matching first
 	for _, adj := range adjustments {
 		if adj == "bpm1to2" || adj == "match1to2" {
-			// Make track 1 BPM match track 2's effective BPM
-			effectiveBPM2 := calculateEffectiveBPM(originalBPM2, baseTempo2 + tempo2Adj)
-			requiredRatio := effectiveBPM2 / originalBPM1
+			// Make track 1 BPM match track 2's original BPM
+			targetBPM := originalBPM2
+			requiredRatio := targetBPM / originalBPM1
 			tempo1Adj = math.Round((requiredRatio - 1.0) * 100.0) - baseTempo1
-			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", effectiveBPM2)
+			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", targetBPM)
 		} else if adj == "bpm2to1" || adj == "match2to1" {
-			// Make track 2 BPM match track 1's effective BPM with exact precision
-			effectiveBPM1 := calculateEffectiveBPM(originalBPM1, baseTempo1 + tempo1Adj)
-			requiredRatio := effectiveBPM1 / originalBPM2
+			// Make track 2 BPM match track 1's original BPM
+			targetBPM := originalBPM1
+			requiredRatio := targetBPM / originalBPM2
 			requiredTotalTempo := (requiredRatio - 1.0) * 100.0
 			tempo2Adj = requiredTotalTempo - baseTempo2
 			
-			fmt.Printf("BPM Match: Setting track 2 to exactly %.1f BPM to match track 1\n", effectiveBPM1)
+			fmt.Printf("BPM Match: Setting track 2 to %.1f BPM to match track 1\n", targetBPM)
 		} else if adj == "key1to2" {
 			// Make both tracks match track 2's key - override base pitch for both
 			keyDiff1 := calculateKeyDifference(*metadata1.Key, *metadata2.Key)
