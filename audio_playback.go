@@ -102,7 +102,8 @@ func handleBlendCommand() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	var pitch1, tempo1, pitch2, tempo2 int
+	var pitch1, pitch2 int
+	var tempo1, tempo2 float64
 	var type1, type2 string
 
 	if found1 && found2 && metadata1.BPM != nil && metadata2.BPM != nil && metadata1.Key != nil && metadata2.Key != nil {
@@ -138,7 +139,7 @@ func handleBlendCommand() {
 		type2 = audioTypes[rand.Intn(2)]
 
 		pitchRange := []int{-8, -6, -4, -2, 0, 2, 4, 6, 8}
-		tempoRange := []int{-20, -15, -10, -5, 0, 5, 10, 15, 20}
+		tempoRange := []float64{-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0}
 
 		pitch1 = pitchRange[rand.Intn(len(pitchRange))]
 		tempo1 = tempoRange[rand.Intn(len(tempoRange))]
@@ -182,8 +183,8 @@ func handleBlendCommand() {
 	}
 
 	fmt.Printf("Blending tracks:\n")
-	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+d%%\n", id1, trackDesc1, pitch1, tempo1)
-	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+d%%\n", id2, trackDesc2, pitch2, tempo2)
+	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%\n", id1, trackDesc1, pitch1, tempo1)
+	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%\n", id2, trackDesc2, pitch2, tempo2)
 	fmt.Printf("Playing for 10 seconds...\n")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -204,7 +205,7 @@ func handleBlendCommand() {
 			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100", pitchMultiplier))
 		}
 		if tempo1 != 0 {
-			tempoMultiplier := 1.0 + (float64(tempo1) / 100.0)
+			tempoMultiplier := 1.0 + (tempo1 / 100.0)
 			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
 				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
 			}
@@ -232,7 +233,7 @@ func handleBlendCommand() {
 			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100", pitchMultiplier))
 		}
 		if tempo2 != 0 {
-			tempoMultiplier := 1.0 + (float64(tempo2) / 100.0)
+			tempoMultiplier := 1.0 + (tempo2 / 100.0)
 			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
 				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
 			}
@@ -278,21 +279,21 @@ func playTempFile(filePath string) {
 	fmt.Println("Preview stopped.")
 }
 
-func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string) (int, int) {
+func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string) (int, float64) {
 	pitch := calculateKeyDifference(sourceKey, targetKey)
 	
 	bpmRatio := targetBPM / sourceBPM
-	var tempo int
+	var tempo float64
 	if bpmRatio > 1.25 {
-		tempo = -15
+		tempo = -15.0
 	} else if bpmRatio > 1.10 {
-		tempo = -8
+		tempo = -8.0
 	} else if bpmRatio < 0.8 {
-		tempo = 20
+		tempo = 20.0
 	} else if bpmRatio < 0.9 {
-		tempo = 10
+		tempo = 10.0
 	} else {
-		tempo = 0
+		tempo = 0.0
 	}
 	
 	return pitch, tempo
@@ -344,7 +345,7 @@ func getOrAssignTrackTypes(id1, id2 string) (string, string) {
 	return type1, type2
 }
 
-func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2, baseTempo2 int, type1, type2 string, adjustments []string, originalBPM1, originalBPM2 float64) (int, int, int, int) {
+func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64, basePitch2 int, baseTempo2 float64, type1, type2 string, adjustments []string, originalBPM1, originalBPM2 float64) (int, float64, int, float64) {
 	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
 	
 	// Load existing adjustments
@@ -356,14 +357,16 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2
 			// Make track 1 BPM match track 2's effective BPM
 			effectiveBPM2 := calculateEffectiveBPM(originalBPM2, baseTempo2 + tempo2Adj)
 			requiredRatio := effectiveBPM2 / originalBPM1
-			tempo1Adj = int(math.Round((requiredRatio - 1.0) * 100.0)) - baseTempo1
+			tempo1Adj = math.Round((requiredRatio - 1.0) * 100.0) - baseTempo1
 			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", effectiveBPM2)
 		} else if adj == "match2to1" {
-			// Make track 2 BPM match track 1's effective BPM
+			// Make track 2 BPM match track 1's effective BPM with exact precision
 			effectiveBPM1 := calculateEffectiveBPM(originalBPM1, baseTempo1 + tempo1Adj)
 			requiredRatio := effectiveBPM1 / originalBPM2
-			tempo2Adj = int(math.Round((requiredRatio - 1.0) * 100.0)) - baseTempo2
-			fmt.Printf("BPM Match: Setting track 2 to %.1f BPM to match track 1\n", effectiveBPM1)
+			requiredTotalTempo := (requiredRatio - 1.0) * 100.0
+			tempo2Adj = requiredTotalTempo - baseTempo2
+			
+			fmt.Printf("BPM Match: Setting track 2 to exactly %.1f BPM to match track 1\n", effectiveBPM1)
 		}
 	}
 	
@@ -380,40 +383,40 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2
 		operation := adj[1:2]
 		param := adj[2:]
 		
-		delta := 0
-		switch param {
-		case "tempo":
-			if operation == "+" {
-				delta = 10
-			} else if operation == "-" {
-				delta = -10
-			}
-		case "pitch":
-			if operation == "+" {
-				delta = 2
-			} else if operation == "-" {
-				delta = -2
-			}
-		}
-		
 		if trackPrefix == type1 {
 			if param == "tempo" {
-				tempo1Adj += delta
+				if operation == "+" {
+					tempo1Adj += 10.0
+				} else if operation == "-" {
+					tempo1Adj -= 10.0
+				}
 			} else if param == "pitch" {
-				pitch1Adj += delta
+				if operation == "+" {
+					pitch1Adj += 2
+				} else if operation == "-" {
+					pitch1Adj -= 2
+				}
 			}
 		} else if trackPrefix == type2 {
 			if param == "tempo" {
-				tempo2Adj += delta
+				if operation == "+" {
+					tempo2Adj += 10.0
+				} else if operation == "-" {
+					tempo2Adj -= 10.0
+				}
 			} else if param == "pitch" {
-				pitch2Adj += delta
+				if operation == "+" {
+					pitch2Adj += 2
+				} else if operation == "-" {
+					pitch2Adj -= 2
+				}
 			}
 		}
 	}
 	
 	// Apply limits
-	tempo1Adj = clamp(tempo1Adj, -50, 50)
-	tempo2Adj = clamp(tempo2Adj, -50, 50)
+	tempo1Adj = clampFloat(tempo1Adj, -50.0, 50.0)
+	tempo2Adj = clampFloat(tempo2Adj, -50.0, 50.0)
 	pitch1Adj = clamp(pitch1Adj, -12, 12)
 	pitch2Adj = clamp(pitch2Adj, -12, 12)
 	
@@ -423,22 +426,22 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2
 	return basePitch1 + pitch1Adj, baseTempo1 + tempo1Adj, basePitch2 + pitch2Adj, baseTempo2 + tempo2Adj
 }
 
-func loadAccumulatedAdjustments(tmpFile string) (int, int, int, int) {
+func loadAccumulatedAdjustments(tmpFile string) (int, float64, int, float64) {
 	if data, err := os.ReadFile(tmpFile); err == nil {
 		parts := strings.Split(strings.TrimSpace(string(data)), ",")
 		if len(parts) == 6 {
 			pitch1, _ := strconv.Atoi(parts[2])
-			tempo1, _ := strconv.Atoi(parts[3])
+			tempo1, _ := strconv.ParseFloat(parts[3], 64)
 			pitch2, _ := strconv.Atoi(parts[4])
-			tempo2, _ := strconv.Atoi(parts[5])
+			tempo2, _ := strconv.ParseFloat(parts[5], 64)
 			return pitch1, tempo1, pitch2, tempo2
 		}
 	}
 	return 0, 0, 0, 0
 }
 
-func saveAccumulatedAdjustments(tmpFile, type1, type2 string, pitch1, tempo1, pitch2, tempo2 int) {
-	data := fmt.Sprintf("%s,%s,%d,%d,%d,%d", type1, type2, pitch1, tempo1, pitch2, tempo2)
+func saveAccumulatedAdjustments(tmpFile, type1, type2 string, pitch1 int, tempo1 float64, pitch2 int, tempo2 float64) {
+	data := fmt.Sprintf("%s,%s,%d,%.3f,%d,%.3f", type1, type2, pitch1, tempo1, pitch2, tempo2)
 	os.WriteFile(tmpFile, []byte(data), 0644)
 }
 
@@ -452,8 +455,18 @@ func clamp(value, min, max int) int {
 	return value
 }
 
-func calculateEffectiveBPM(originalBPM float64, tempoAdjustment int) float64 {
-	multiplier := 1.0 + (float64(tempoAdjustment) / 100.0)
+func clampFloat(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func calculateEffectiveBPM(originalBPM float64, tempoAdjustment float64) float64 {
+	multiplier := 1.0 + (tempoAdjustment / 100.0)
 	return originalBPM * multiplier
 }
 
