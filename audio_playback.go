@@ -108,8 +108,15 @@ func handleBlendCommand() {
 		fmt.Printf("  Track 1 (%s): %.1f BPM, %s\n", id1, bpm1, key1)
 		fmt.Printf("  Track 2 (%s): %.1f BPM, %s\n", id2, bpm2, key2)
 
-		pitch1, tempo1, type1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2, 1)
-		pitch2, tempo2, type2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1, 2)
+		audioTypes := []string{"V", "I"}
+		rand.Shuffle(len(audioTypes), func(i, j int) {
+			audioTypes[i], audioTypes[j] = audioTypes[j], audioTypes[i]
+		})
+		type1 = audioTypes[0]
+		type2 = audioTypes[1]
+		
+		pitch1, tempo1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2)
+		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
 	} else {
 		fmt.Printf("BPM/key data not available, using random adjustments\n")
 		
@@ -258,7 +265,7 @@ func playTempFile(filePath string) {
 	fmt.Println("Preview stopped.")
 }
 
-func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string, trackNum int) (int, int, string) {
+func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string) (int, int) {
 	pitch := calculateKeyDifference(sourceKey, targetKey)
 	
 	bpmRatio := targetBPM / sourceBPM
@@ -275,22 +282,7 @@ func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, target
 		tempo = 0
 	}
 	
-	var audioType string
-	if trackNum == 1 {
-		if sourceBPM < targetBPM {
-			audioType = "V"
-		} else {
-			audioType = "I"
-		}
-	} else {
-		if sourceBPM > targetBPM {
-			audioType = "V"
-		} else {
-			audioType = "I"
-		}
-	}
-	
-	return pitch, tempo, audioType
+	return pitch, tempo
 }
 
 func calculateKeyDifference(key1, key2 string) int {
