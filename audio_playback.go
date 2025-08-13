@@ -118,6 +118,15 @@ func handleBlendCommand() {
 		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
 		
 		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments)
+		
+		effectiveBPM1 := calculateEffectiveBPM(bpm1, tempo1)
+		effectiveBPM2 := calculateEffectiveBPM(bpm2, tempo2)
+		effectiveKey1 := calculateEffectiveKey(key1, pitch1)
+		effectiveKey2 := calculateEffectiveKey(key2, pitch2)
+		
+		fmt.Printf("Effective values:\n")
+		fmt.Printf("  Track 1 (%s): %.1f BPM, %s (was %.1f BPM, %s)\n", id1, effectiveBPM1, effectiveKey1, bpm1, key1)
+		fmt.Printf("  Track 2 (%s): %.1f BPM, %s (was %.1f BPM, %s)\n", id2, effectiveBPM2, effectiveKey2, bpm2, key2)
 	} else {
 		fmt.Printf("BPM/key data not available, using random adjustments\n")
 		
@@ -418,4 +427,47 @@ func clamp(value, min, max int) int {
 		return max
 	}
 	return value
+}
+
+func calculateEffectiveBPM(originalBPM float64, tempoAdjustment int) float64 {
+	multiplier := 1.0 + (float64(tempoAdjustment) / 100.0)
+	return originalBPM * multiplier
+}
+
+func calculateEffectiveKey(originalKey string, pitchAdjustment int) string {
+	if pitchAdjustment == 0 {
+		return originalKey
+	}
+	
+	keyMap := map[string]int{
+		"C major": 0, "G major": 7, "D major": 2, "A major": 9, "E major": 4, "B major": 11,
+		"F# major": 6, "Db major": 1, "Ab major": 8, "Eb major": 3, "Bb major": 10, "F major": 5,
+		"A minor": 9, "E minor": 4, "B minor": 11, "F# minor": 6, "C# minor": 1, "G# minor": 8,
+		"Eb minor": 3, "Bb minor": 10, "F minor": 5, "C minor": 0, "G minor": 7, "D minor": 2,
+	}
+	
+	reverseKeyMap := make(map[int]string)
+	isMinor := strings.Contains(originalKey, "minor")
+	
+	for key, value := range keyMap {
+		if (isMinor && strings.Contains(key, "minor")) || (!isMinor && strings.Contains(key, "major")) {
+			reverseKeyMap[value] = key
+		}
+	}
+	
+	originalValue, exists := keyMap[originalKey]
+	if !exists {
+		return originalKey
+	}
+	
+	newValue := (originalValue + pitchAdjustment) % 12
+	if newValue < 0 {
+		newValue += 12
+	}
+	
+	if newKey, exists := reverseKeyMap[newValue]; exists {
+		return newKey
+	}
+	
+	return originalKey
 }
