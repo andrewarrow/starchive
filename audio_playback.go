@@ -78,7 +78,9 @@ func handleBlendCommand() {
 		fmt.Println("Usage: starchive blend <id1> <id2> [adjustments...]")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
 		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s I+tempo V-pitch")
+		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s match2to1")
 		fmt.Println("Adjustments: I+tempo, I-tempo, V+tempo, V-tempo, I+pitch, I-pitch, V+pitch, V-pitch")
+		fmt.Println("            match1to2 (sync track 1 BPM to track 2), match2to1 (sync track 2 BPM to track 1)")
 		fmt.Println("Plays two tracks simultaneously with intelligent BPM/key-based adjustments for 10 seconds")
 		os.Exit(1)
 	}
@@ -117,7 +119,7 @@ func handleBlendCommand() {
 		pitch1, tempo1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2)
 		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
 		
-		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments)
+		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments, bpm1, bpm2)
 		
 		effectiveBPM1 := calculateEffectiveBPM(bpm1, tempo1)
 		effectiveBPM2 := calculateEffectiveBPM(bpm2, tempo2)
@@ -341,14 +343,34 @@ func getOrAssignTrackTypes(id1, id2 string) (string, string) {
 	return type1, type2
 }
 
-func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2, baseTempo2 int, type1, type2 string, adjustments []string) (int, int, int, int) {
+func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2, baseTempo2 int, type1, type2 string, adjustments []string, originalBPM1, originalBPM2 float64) (int, int, int, int) {
 	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
 	
 	// Load existing adjustments
 	pitch1Adj, tempo1Adj, pitch2Adj, tempo2Adj := loadAccumulatedAdjustments(tmpFile)
 	
-	// Apply new adjustments
+	// Check for BPM matching first
 	for _, adj := range adjustments {
+		if adj == "match1to2" {
+			// Make track 1 BPM match track 2's effective BPM
+			effectiveBPM2 := calculateEffectiveBPM(originalBPM2, baseTempo2 + tempo2Adj)
+			requiredRatio := effectiveBPM2 / originalBPM1
+			tempo1Adj = int((requiredRatio - 1.0) * 100.0)
+			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", effectiveBPM2)
+		} else if adj == "match2to1" {
+			// Make track 2 BPM match track 1's effective BPM
+			effectiveBPM1 := calculateEffectiveBPM(originalBPM1, baseTempo1 + tempo1Adj)
+			requiredRatio := effectiveBPM1 / originalBPM2
+			tempo2Adj = int((requiredRatio - 1.0) * 100.0)
+			fmt.Printf("BPM Match: Setting track 2 to %.1f BPM to match track 1\n", effectiveBPM1)
+		}
+	}
+	
+	// Apply other adjustments
+	for _, adj := range adjustments {
+		if adj == "match1to2" || adj == "match2to1" {
+			continue
+		}
 		if len(adj) < 3 {
 			continue
 		}
