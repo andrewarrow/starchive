@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/chzyer/readline"
 )
@@ -87,7 +86,7 @@ func (bs *BlendShell) run() {
 	}
 	
 	fmt.Printf("\nCommands:\n")
-	fmt.Printf("  play                 Play current blend\n")
+	fmt.Printf("  play                 Play current blend (press any key to stop)\n")
 	fmt.Printf("  pitch1 <n>           Adjust track 1 pitch (semitones)\n")
 	fmt.Printf("  pitch2 <n>           Adjust track 2 pitch (semitones)\n")
 	fmt.Printf("  tempo1 <n>           Adjust track 1 tempo (%%)\n")
@@ -248,7 +247,7 @@ func (bs *BlendShell) showStatus() {
 func (bs *BlendShell) showHelp() {
 	fmt.Printf("--- Blend Shell Commands ---\n")
 	fmt.Printf("Playback:\n")
-	fmt.Printf("  play                Play current blend for 10 seconds\n")
+	fmt.Printf("  play                Play current blend (press any key to stop)\n")
 	fmt.Printf("Adjustments:\n")
 	fmt.Printf("  pitch1 <n>          Adjust track 1 pitch (-12 to +12 semitones)\n")
 	fmt.Printf("  pitch2 <n>          Adjust track 2 pitch (-12 to +12 semitones)\n")
@@ -321,25 +320,18 @@ func (bs *BlendShell) playBlend() {
 	// Calculate maximum available play duration for both tracks
 	remainingDuration1 := bs.duration1 - startPosition1
 	remainingDuration2 := bs.duration2 - startPosition2
-	playDuration := 10.0 // Default 10 seconds
-	
-	// Use the smaller of the two remaining durations, but cap at 10 seconds
 	maxAvailableDuration := remainingDuration1
 	if remainingDuration2 < maxAvailableDuration {
 		maxAvailableDuration = remainingDuration2
 	}
-	
-	if maxAvailableDuration < playDuration {
-		playDuration = maxAvailableDuration
-	}
 
-	fmt.Printf("Playing blend for %.1f seconds...\n", playDuration)
+	fmt.Printf("Playing blend... Press any key to stop.\n")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(playDuration*1000)*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1, playDuration)
-	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2, playDuration)
+	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1, maxAvailableDuration)
+	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2, maxAvailableDuration)
 
 	go func() {
 		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
@@ -351,8 +343,15 @@ func (bs *BlendShell) playBlend() {
 		cmd2.Run()
 	}()
 
+	// Wait for any key press
+	go func() {
+		var input string
+		fmt.Scanf("%s", &input)
+		cancel()
+	}()
+
 	<-ctx.Done()
-	fmt.Printf("Playback completed.\n\n")
+	fmt.Printf("Playback stopped.\n\n")
 }
 
 func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch int, tempo float64, volume float64, playDuration float64) []string {
