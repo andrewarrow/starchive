@@ -301,13 +301,15 @@ func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, target
 	return pitch, tempo
 }
 
+var keyMap = map[string]int{
+	"C major": 0, "G major": 7, "D major": 2, "A major": 9, "E major": 4, "B major": 11,
+	"F# major": 6, "Db major": 1, "Ab major": 8, "Eb major": 3, "Bb major": 10, "F major": 5,
+	"C# major": 1, "G# major": 8,
+	"A minor": 9, "E minor": 4, "B minor": 11, "F# minor": 6, "C# minor": 1, "G# minor": 8,
+	"Eb minor": 3, "Bb minor": 10, "F minor": 5, "C minor": 0, "G minor": 7, "D minor": 2,
+}
+
 func calculateKeyDifference(key1, key2 string) int {
-	keyMap := map[string]int{
-		"C major": 0, "G major": 7, "D major": 2, "A major": 9, "E major": 4, "B major": 11,
-		"F# major": 6, "Db major": 1, "Ab major": 8, "Eb major": 3, "Bb major": 10, "F major": 5,
-		"A minor": 9, "E minor": 4, "B minor": 11, "F# minor": 6, "C# minor": 1, "G# minor": 8,
-		"Eb minor": 3, "Bb minor": 10, "F minor": 5, "C minor": 0, "G minor": 7, "D minor": 2,
-	}
 	
 	val1, exists1 := keyMap[key1]
 	val2, exists2 := keyMap[key2]
@@ -486,13 +488,6 @@ func calculateEffectiveBPM(originalBPM float64, tempoAdjustment float64) float64
 func calculateEffectiveKey(originalKey string, pitchAdjustment int) string {
 	if pitchAdjustment == 0 {
 		return originalKey
-	}
-	
-	keyMap := map[string]int{
-		"C major": 0, "G major": 7, "D major": 2, "A major": 9, "E major": 4, "B major": 11,
-		"F# major": 6, "Db major": 1, "Ab major": 8, "Eb major": 3, "Bb major": 10, "F major": 5,
-		"A minor": 9, "E minor": 4, "B minor": 11, "F# minor": 6, "C# minor": 1, "G# minor": 8,
-		"Eb minor": 3, "Bb minor": 10, "F minor": 5, "C minor": 0, "G minor": 7, "D minor": 2,
 	}
 	
 	reverseKeyMap := make(map[int]string)
