@@ -372,15 +372,17 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64
 			
 			fmt.Printf("BPM Match: Setting track 2 to exactly %.1f BPM to match track 1\n", effectiveBPM1)
 		} else if adj == "key1to2" {
-			// Make track 1 key match track 2's original key
-			keyDiff := calculateKeyDifference(*metadata1.Key, *metadata2.Key)
-			pitch1Adj = keyDiff - basePitch1
-			fmt.Printf("Key Match: Setting track 1 to %s to match track 2\n", *metadata2.Key)
+			// Make both tracks match track 2's key - override base pitch for both
+			keyDiff1 := calculateKeyDifference(*metadata1.Key, *metadata2.Key)
+			pitch1Adj = keyDiff1 - basePitch1  // Track 1 to target key
+			pitch2Adj = 0 - basePitch2         // Track 2 stays in original key (cancel base adjustment)
+			fmt.Printf("Key Match: Setting both tracks to %s\n", *metadata2.Key)
 		} else if adj == "key2to1" {
-			// Make track 2 key match track 1's original key
-			keyDiff := calculateKeyDifference(*metadata2.Key, *metadata1.Key)
-			pitch2Adj = keyDiff - basePitch2
-			fmt.Printf("Key Match: Setting track 2 to %s to match track 1\n", *metadata1.Key)
+			// Make both tracks match track 1's key - override base pitch for both
+			keyDiff2 := calculateKeyDifference(*metadata2.Key, *metadata1.Key)
+			pitch1Adj = 0 - basePitch1         // Track 1 stays in original key (cancel base adjustment)
+			pitch2Adj = keyDiff2 - basePitch2  // Track 2 to target key
+			fmt.Printf("Key Match: Setting both tracks to %s\n", *metadata1.Key)
 		}
 	}
 	
