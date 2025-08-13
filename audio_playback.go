@@ -464,17 +464,21 @@ func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64
 	// Check for BPM and key matching first
 	for _, adj := range adjustments {
 		if adj == "bpm1to2" || adj == "match1to2" {
-			// Make track 1 BPM match track 2's original BPM
+			// Make track 1 BPM match track 2's original BPM - keep track 2 unchanged
 			targetBPM := originalBPM2
 			requiredRatio := targetBPM / originalBPM1
 			tempo1Adj = math.Round((requiredRatio - 1.0) * 100.0) - baseTempo1
+			// Reset track 2 to no adjustments to preserve original BPM
+			tempo2Adj = -baseTempo2
 			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", targetBPM)
 		} else if adj == "bpm2to1" || adj == "match2to1" {
-			// Make track 2 BPM match track 1's original BPM
+			// Make track 2 BPM match track 1's original BPM - keep track 1 unchanged
 			targetBPM := originalBPM1
 			requiredRatio := targetBPM / originalBPM2
 			requiredTotalTempo := (requiredRatio - 1.0) * 100.0
 			tempo2Adj = requiredTotalTempo - baseTempo2
+			// Reset track 1 to no adjustments to preserve original BPM
+			tempo1Adj = -baseTempo1
 			
 			fmt.Printf("BPM Match: Setting track 2 to %.1f BPM to match track 1\n", targetBPM)
 		} else if adj == "key1to2" {
