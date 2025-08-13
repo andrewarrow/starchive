@@ -105,12 +105,12 @@ func handleVocalCommand() {
 	}
 
 	if strings.HasPrefix(id, "_") {
-		expectedVocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
-		expectedInstrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+		expectedVocalPath := getVocalFilePath(id)
+		expectedInstrumentalPath := getInstrumentalFilePath(id)
 		
 		strippedID := strings.TrimPrefix(id, "_")
-		actualVocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", strippedID)
-		actualInstrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", strippedID)
+		actualVocalPath := getVocalFilePath(strippedID)
+		actualInstrumentalPath := getInstrumentalFilePath(strippedID)
 		
 		if _, err := os.Stat(actualVocalPath); err == nil {
 			if err := os.Rename(actualVocalPath, expectedVocalPath); err != nil {
@@ -256,14 +256,14 @@ func handleSyncCommand() {
 	fmt.Printf("  %s inverse: %.3f (%.1f%%)\n", id2, invRatio2to1, (invRatio2to1-1)*100)
 
 	files := []string{
-		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id1),
-		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id1),
-		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id2),
-		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id2),
-		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id1),
-		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id1),
-		fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id2),
-		fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id2),
+		getVocalFilename(id1),
+		getInstrumentalFilename(id1),
+		getVocalFilename(id2),
+		getInstrumentalFilename(id2),
+		getVocalFilename(id1),
+		getInstrumentalFilename(id1),
+		getVocalFilename(id2),
+		getInstrumentalFilename(id2),
 	}
 
 	ratios := []float64{ratio1to2, ratio1to2, ratio2to1, ratio2to1, invRatio1to2, invRatio1to2, invRatio2to1, invRatio2to1}

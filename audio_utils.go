@@ -53,26 +53,40 @@ func waitForKeyPress() {
 	}
 }
 
+func getVocalFilePath(id string) string {
+	return fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+}
+
+func getInstrumentalFilePath(id string) string {
+	return fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+}
+
+func getVocalFilename(id string) string {
+	return fmt.Sprintf("%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+}
+
+func getInstrumentalFilename(id string) string {
+	return fmt.Sprintf("%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+}
+
 func getAudioFilename(id, audioType string) string {
 	switch audioType {
 	case "V", "vocal", "vocals":
-		return fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+		return getVocalFilePath(id)
 	case "I", "instrumental", "instrumentals":
-		return fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+		return getInstrumentalFilePath(id)
 	default:
 		return fmt.Sprintf("./data/%s.wav", id)
 	}
 }
 
 func hasVocalFile(id string) bool {
-	vocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
-	_, err := os.Stat(vocalPath)
+	_, err := os.Stat(getVocalFilePath(id))
 	return !os.IsNotExist(err)
 }
 
 func hasInstrumentalFile(id string) bool {
-	instrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
-	_, err := os.Stat(instrumentalPath)
+	_, err := os.Stat(getInstrumentalFilePath(id))
 	return !os.IsNotExist(err)
 }
 
