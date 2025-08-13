@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chzyer/readline"
 )
 
 func handleBlendCommand() {
@@ -271,12 +272,20 @@ func (bs *BlendShell) run() {
 
 	bs.showStatus()
 	
-	reader := bufio.NewReader(os.Stdin)
+	rl, err := readline.New("blend> ")
+	if err != nil {
+		fmt.Printf("Error initializing readline: %v\n", err)
+		return
+	}
+	defer rl.Close()
 	
 	for {
-		fmt.Printf("blend> ")
-		input, err := reader.ReadString('\n')
+		input, err := rl.Readline()
 		if err != nil {
+			if err == readline.ErrInterrupt {
+				fmt.Println("\nExiting blend shell...")
+				break
+			}
 			fmt.Printf("Error reading input: %v\n", err)
 			break
 		}
