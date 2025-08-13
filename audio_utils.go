@@ -64,6 +64,18 @@ func getAudioFilename(id, audioType string) string {
 	}
 }
 
+func hasVocalFile(id string) bool {
+	vocalPath := fmt.Sprintf("./data/%s_(Vocals)_UVR_MDXNET_Main.wav", id)
+	_, err := os.Stat(vocalPath)
+	return !os.IsNotExist(err)
+}
+
+func hasInstrumentalFile(id string) bool {
+	instrumentalPath := fmt.Sprintf("./data/%s_(Instrumental)_UVR_MDXNET_Main.wav", id)
+	_, err := os.Stat(instrumentalPath)
+	return !os.IsNotExist(err)
+}
+
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

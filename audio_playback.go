@@ -136,9 +136,8 @@ func handleBlendCommand() {
 	} else {
 		fmt.Printf("BPM/key data not available, using random adjustments\n")
 		
-		audioTypes := []string{"I", "V"}
-		type1 = audioTypes[rand.Intn(2)]
-		type2 = audioTypes[rand.Intn(2)]
+		// Use smart file detection instead of pure random
+		type1, type2 = getOrAssignTrackTypes(id1, id2)
 
 		pitchRange := []int{-8, -6, -4, -2, 0, 2, 4, 6, 8}
 		tempoRange := []float64{-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0}
@@ -384,11 +383,47 @@ func getOrAssignTrackTypes(id1, id2 string) (string, string) {
 		}
 	}
 	
-	audioTypes := []string{"V", "I"}
-	rand.Shuffle(len(audioTypes), func(i, j int) {
-		audioTypes[i], audioTypes[j] = audioTypes[j], audioTypes[i]
-	})
-	type1, type2 := audioTypes[0], audioTypes[1]
+	// Check which files exist for each ID
+	id1HasVocal := hasVocalFile(id1)
+	id1HasInstrumental := hasInstrumentalFile(id1)
+	id2HasVocal := hasVocalFile(id2)
+	id2HasInstrumental := hasInstrumentalFile(id2)
+	
+	var type1, type2 string
+	
+	// Determine type1 (for id1)
+	if !id1HasVocal && id1HasInstrumental {
+		type1 = "I" // Only instrumental available
+	} else if id1HasVocal && !id1HasInstrumental {
+		type1 = "V" // Only vocal available
+	} else if id1HasVocal && id1HasInstrumental {
+		// Both available, choose randomly
+		if rand.Intn(2) == 0 {
+			type1 = "V"
+		} else {
+			type1 = "I"
+		}
+	} else {
+		// Neither available - this shouldn't happen, but default to "I"
+		type1 = "I"
+	}
+	
+	// Determine type2 (for id2)
+	if !id2HasVocal && id2HasInstrumental {
+		type2 = "I" // Only instrumental available
+	} else if id2HasVocal && !id2HasInstrumental {
+		type2 = "V" // Only vocal available
+	} else if id2HasVocal && id2HasInstrumental {
+		// Both available, choose randomly
+		if rand.Intn(2) == 0 {
+			type2 = "V"
+		} else {
+			type2 = "I"
+		}
+	} else {
+		// Neither available - this shouldn't happen, but default to "I"
+		type2 = "I"
+	}
 	
 	// Format: type1,type2,pitch1,tempo1,pitch2,tempo2
 	os.WriteFile(tmpFile, []byte(fmt.Sprintf("%s,%s,0,0,0,0", type1, type2)), 0644)
