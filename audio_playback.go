@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -116,8 +117,7 @@ func handleBlendCommand() {
 		pitch1, tempo1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2)
 		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
 		
-		pitch1, tempo1 = applyAdjustments(pitch1, tempo1, type1, adjustments)
-		pitch2, tempo2 = applyAdjustments(pitch2, tempo2, type2, adjustments)
+		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments)
 	} else {
 		fmt.Printf("BPM/key data not available, using random adjustments\n")
 		
@@ -316,7 +316,7 @@ func getOrAssignTrackTypes(id1, id2 string) (string, string) {
 	
 	if data, err := os.ReadFile(tmpFile); err == nil {
 		parts := strings.Split(strings.TrimSpace(string(data)), ",")
-		if len(parts) == 2 {
+		if len(parts) >= 2 {
 			return parts[0], parts[1]
 		}
 	}
@@ -327,54 +327,95 @@ func getOrAssignTrackTypes(id1, id2 string) (string, string) {
 	})
 	type1, type2 := audioTypes[0], audioTypes[1]
 	
-	os.WriteFile(tmpFile, []byte(type1+","+type2), 0644)
+	// Format: type1,type2,pitch1,tempo1,pitch2,tempo2
+	os.WriteFile(tmpFile, []byte(fmt.Sprintf("%s,%s,0,0,0,0", type1, type2)), 0644)
 	return type1, type2
 }
 
-func applyAdjustments(basePitch, baseTempo int, trackType string, adjustments []string) (int, int) {
-	pitch := basePitch
-	tempo := baseTempo
+func applyAndSaveAdjustments(id1, id2 string, basePitch1, baseTempo1, basePitch2, baseTempo2 int, type1, type2 string, adjustments []string) (int, int, int, int) {
+	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
 	
+	// Load existing adjustments
+	pitch1Adj, tempo1Adj, pitch2Adj, tempo2Adj := loadAccumulatedAdjustments(tmpFile)
+	
+	// Apply new adjustments
 	for _, adj := range adjustments {
 		if len(adj) < 3 {
 			continue
 		}
 		
 		trackPrefix := adj[0:1]
-		if trackPrefix != trackType {
-			continue
-		}
-		
 		operation := adj[1:2]
 		param := adj[2:]
 		
+		delta := 0
 		switch param {
 		case "tempo":
 			if operation == "+" {
-				tempo += 10
+				delta = 10
 			} else if operation == "-" {
-				tempo -= 10
+				delta = -10
 			}
 		case "pitch":
 			if operation == "+" {
-				pitch += 2
+				delta = 2
 			} else if operation == "-" {
-				pitch -= 2
+				delta = -2
+			}
+		}
+		
+		if trackPrefix == type1 {
+			if param == "tempo" {
+				tempo1Adj += delta
+			} else if param == "pitch" {
+				pitch1Adj += delta
+			}
+		} else if trackPrefix == type2 {
+			if param == "tempo" {
+				tempo2Adj += delta
+			} else if param == "pitch" {
+				pitch2Adj += delta
 			}
 		}
 	}
 	
-	if tempo > 50 {
-		tempo = 50
-	} else if tempo < -50 {
-		tempo = -50
-	}
+	// Apply limits
+	tempo1Adj = clamp(tempo1Adj, -50, 50)
+	tempo2Adj = clamp(tempo2Adj, -50, 50)
+	pitch1Adj = clamp(pitch1Adj, -12, 12)
+	pitch2Adj = clamp(pitch2Adj, -12, 12)
 	
-	if pitch > 12 {
-		pitch = 12
-	} else if pitch < -12 {
-		pitch = -12
-	}
+	// Save back to file
+	saveAccumulatedAdjustments(tmpFile, type1, type2, pitch1Adj, tempo1Adj, pitch2Adj, tempo2Adj)
 	
-	return pitch, tempo
+	return basePitch1 + pitch1Adj, baseTempo1 + tempo1Adj, basePitch2 + pitch2Adj, baseTempo2 + tempo2Adj
+}
+
+func loadAccumulatedAdjustments(tmpFile string) (int, int, int, int) {
+	if data, err := os.ReadFile(tmpFile); err == nil {
+		parts := strings.Split(strings.TrimSpace(string(data)), ",")
+		if len(parts) == 6 {
+			pitch1, _ := strconv.Atoi(parts[2])
+			tempo1, _ := strconv.Atoi(parts[3])
+			pitch2, _ := strconv.Atoi(parts[4])
+			tempo2, _ := strconv.Atoi(parts[5])
+			return pitch1, tempo1, pitch2, tempo2
+		}
+	}
+	return 0, 0, 0, 0
+}
+
+func saveAccumulatedAdjustments(tmpFile, type1, type2 string, pitch1, tempo1, pitch2, tempo2 int) {
+	data := fmt.Sprintf("%s,%s,%d,%d,%d,%d", type1, type2, pitch1, tempo1, pitch2, tempo2)
+	os.WriteFile(tmpFile, []byte(data), 0644)
+}
+
+func clamp(value, min, max int) int {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
