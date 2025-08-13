@@ -76,10 +76,12 @@ func handlePlayCommand() {
 
 func handleBlendCommand() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: starchive blend <id1> <id2> [adjustments...]")
+		fmt.Println("Usage: starchive blend <id1> <id2> [volume1] [volume2] [adjustments...]")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
-		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s I+tempo V-pitch")
-		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s bpm2to1 key1to2")
+		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s 100 50")
+		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s 100 50 I+tempo V-pitch")
+		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s 80 120 bpm2to1 key1to2")
+		fmt.Println("Volume: 0-200 (default: 100 for both tracks)")
 		fmt.Println("Adjustments: I+tempo, I-tempo, V+tempo, V-tempo, I+pitch, I-pitch, V+pitch, V-pitch")
 		fmt.Println("Matching:")
 		fmt.Println("  bpm1to2, bpm2to1 (sync BPM between tracks)")
@@ -90,7 +92,22 @@ func handleBlendCommand() {
 
 	id1 := os.Args[2]
 	id2 := os.Args[3]
+	
+	// Parse volume parameters if provided
+	volume1 := 100.0
+	volume2 := 100.0
 	adjustments := os.Args[4:]
+	
+	// Check if first two arguments after the IDs are volume levels
+	if len(os.Args) >= 6 {
+		if vol1, err := strconv.Atoi(os.Args[4]); err == nil && vol1 >= 0 && vol1 <= 200 {
+			if vol2, err := strconv.Atoi(os.Args[5]); err == nil && vol2 >= 0 && vol2 <= 200 {
+				volume1 = float64(vol1)
+				volume2 = float64(vol2)
+				adjustments = os.Args[6:]
+			}
+		}
+	}
 
 	db, err := initDatabase()
 	if err != nil {
@@ -184,8 +201,8 @@ func handleBlendCommand() {
 	}
 
 	fmt.Printf("Blending tracks:\n")
-	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%\n", id1, trackDesc1, pitch1, tempo1)
-	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%\n", id2, trackDesc2, pitch2, tempo2)
+	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%, volume %.0f%%\n", id1, trackDesc1, pitch1, tempo1, volume1)
+	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%, volume %.0f%%\n", id2, trackDesc2, pitch2, tempo2, volume2)
 	fmt.Printf("Playing for 10 seconds...\n")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -199,7 +216,7 @@ func handleBlendCommand() {
 		"-loglevel", "quiet",
 	}
 	
-	if pitch1 != 0 || tempo1 != 0 {
+	if pitch1 != 0 || tempo1 != 0 || volume1 != 100 {
 		var filters []string
 		if tempo1 != 0 {
 			tempoMultiplier := 1.0 + (tempo1 / 100.0)
@@ -212,6 +229,10 @@ func handleBlendCommand() {
 			pitchSemitones := float64(pitch1)
 			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
 				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
+		}
+		if volume1 != 100 {
+			volumeMultiplier := volume1 / 100.0
+			filters = append(filters, fmt.Sprintf("volume=%.6f", volumeMultiplier))
 		}
 		if len(filters) > 0 {
 			filter := strings.Join(filters, ",")
@@ -229,7 +250,7 @@ func handleBlendCommand() {
 		"-loglevel", "quiet",
 	}
 	
-	if pitch2 != 0 || tempo2 != 0 {
+	if pitch2 != 0 || tempo2 != 0 || volume2 != 100 {
 		var filters []string
 		if tempo2 != 0 {
 			tempoMultiplier := 1.0 + (tempo2 / 100.0)
@@ -242,6 +263,10 @@ func handleBlendCommand() {
 			pitchSemitones := float64(pitch2)
 			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
 				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
+		}
+		if volume2 != 100 {
+			volumeMultiplier := volume2 / 100.0
+			filters = append(filters, fmt.Sprintf("volume=%.6f", volumeMultiplier))
 		}
 		if len(filters) > 0 {
 			filter := strings.Join(filters, ",")
