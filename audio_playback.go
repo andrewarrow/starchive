@@ -342,20 +342,7 @@ func playTempFile(filePath string) {
 
 func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string) (int, float64) {
 	pitch := calculateKeyDifference(sourceKey, targetKey)
-	
-	bpmRatio := targetBPM / sourceBPM
-	var tempo float64
-	if bpmRatio > 1.25 {
-		tempo = -15.0
-	} else if bpmRatio > 1.10 {
-		tempo = -8.0
-	} else if bpmRatio < 0.8 {
-		tempo = 20.0
-	} else if bpmRatio < 0.9 {
-		tempo = 10.0
-	} else {
-		tempo = 0.0
-	}
+	tempo := 0.0
 	
 	return pitch, tempo
 }
