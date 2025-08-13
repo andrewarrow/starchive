@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -276,7 +277,20 @@ func (bs *BlendShell) run() {
 
 	bs.showStatus()
 	
-	rl, err := readline.New("blend> ")
+	// Set up history file
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("Warning: Could not get home directory: %v\n", err)
+		homeDir = "."
+	}
+	historyFile := filepath.Join(homeDir, ".blend_history")
+	
+	config := &readline.Config{
+		Prompt:      "blend> ",
+		HistoryFile: historyFile,
+	}
+	
+	rl, err := readline.NewEx(config)
 	if err != nil {
 		fmt.Printf("Error initializing readline: %v\n", err)
 		return
