@@ -618,13 +618,28 @@ func (bs *BlendShell) playBlend() {
 		startPosition2 = bs.duration2 - 1
 	}
 
-	fmt.Printf("Playing blend for 10 seconds...\n")
+	// Calculate maximum available play duration for both tracks
+	remainingDuration1 := bs.duration1 - startPosition1
+	remainingDuration2 := bs.duration2 - startPosition2
+	playDuration := 10.0 // Default 10 seconds
+	
+	// Use the smaller of the two remaining durations, but cap at 10 seconds
+	maxAvailableDuration := remainingDuration1
+	if remainingDuration2 < maxAvailableDuration {
+		maxAvailableDuration = remainingDuration2
+	}
+	
+	if maxAvailableDuration < playDuration {
+		playDuration = maxAvailableDuration
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	fmt.Printf("Playing blend for %.1f seconds...\n", playDuration)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(playDuration*1000)*time.Millisecond)
 	defer cancel()
 
-	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1)
-	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2)
+	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1, playDuration)
+	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2, playDuration)
 
 	go func() {
 		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
@@ -640,10 +655,10 @@ func (bs *BlendShell) playBlend() {
 	fmt.Printf("Playback completed.\n\n")
 }
 
-func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch int, tempo float64, volume float64) []string {
+func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch int, tempo float64, volume float64, playDuration float64) []string {
 	args := []string{
 		"-ss", fmt.Sprintf("%.1f", startPos),
-		"-t", "10",
+		"-t", fmt.Sprintf("%.1f", playDuration),
 		"-autoexit",
 		"-nodisp",
 		"-loglevel", "quiet",
