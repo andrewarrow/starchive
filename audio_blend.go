@@ -489,6 +489,14 @@ func (bs *BlendShell) handleCommand(input string) bool {
 		fmt.Printf("Unknown command: %s (type help for commands)\n", cmd)
 	}
 	
+	// Auto-show status after commands that modify state
+	switch cmd {
+	case "exit", "quit", "q", "help", "h", "status", "s", "play", "p":
+		// Don't show status after these commands
+	default:
+		bs.showStatus()
+	}
+	
 	return true
 }
 
