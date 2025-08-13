@@ -13,68 +13,6 @@ import (
 	"time"
 )
 
-func handlePlayCommand() {
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: starchive play <id> [I|V]")
-		fmt.Println("Example: starchive play NdYWuo9OFAw")
-		fmt.Println("         starchive play NdYWuo9OFAw I  (instrumental)")
-		fmt.Println("         starchive play NdYWuo9OFAw V  (vocals)")
-		fmt.Println("Plays the wav file starting from the middle. Press any key to stop.")
-		os.Exit(1)
-	}
-
-	id := os.Args[2]
-	
-	audioType := ""
-	if len(os.Args) > 3 {
-		audioType = os.Args[3]
-	}
-	
-	inputPath := getAudioFilename(id, audioType)
-
-	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
-		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
-		os.Exit(1)
-	}
-
-	duration, err := getAudioDuration(inputPath)
-	if err != nil {
-		fmt.Printf("Error getting audio duration: %v\n", err)
-		os.Exit(1)
-	}
-
-	startPosition := duration / 2
-	
-	trackDesc := "main track"
-	switch audioType {
-	case "I", "instrumental", "instrumentals":
-		trackDesc = "instrumental track"
-	case "V", "vocal", "vocals":
-		trackDesc = "vocal track"
-	}
-	
-	fmt.Printf("Playing %s (%s) from position %.1fs (middle of %.1fs total)\n", id, trackDesc, startPosition, duration)
-	fmt.Println("Press any key to stop playback...")
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		cmd := exec.CommandContext(ctx, "ffplay", 
-			"-ss", fmt.Sprintf("%.1f", startPosition),
-			"-autoexit",
-			"-nodisp",
-			"-loglevel", "quiet",
-			inputPath)
-		
-		cmd.Run()
-	}()
-
-	waitForKeyPress()
-	cancel()
-	fmt.Println("\nPlayback stopped.")
-}
-
 func handleBlendCommand() {
 	if len(os.Args) < 4 {
 		fmt.Println("Usage: starchive blend <id1> <id2>")
@@ -86,17 +24,14 @@ func handleBlendCommand() {
 	id1 := os.Args[2]
 	id2 := os.Args[3]
 	
-	// Initialize blend shell
 	blendShell := newBlendShell(id1, id2)
 	blendShell.run()
 }
 
 func handleBlendClearCommand() {
 	if len(os.Args) == 2 {
-		// Clear all blend metadata
 		clearAllBlendMetadata()
 	} else if len(os.Args) == 4 {
-		// Clear specific blend metadata for two IDs
 		id1 := os.Args[2]
 		id2 := os.Args[3]
 		clearSpecificBlendMetadata(id1, id2)
@@ -123,7 +58,6 @@ func clearAllBlendMetadata() {
 }
 
 func clearSpecificBlendMetadata(id1, id2 string) {
-	// Try both possible filename combinations
 	file1 := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
 	file2 := "/tmp/starchive_blend_" + id2 + "_" + id1 + ".tmp"
 	
@@ -144,25 +78,6 @@ func clearSpecificBlendMetadata(id1, id2 string) {
 	} else {
 		fmt.Printf("No blend metadata found for tracks %s and %s.\n", id1, id2)
 	}
-}
-
-func playTempFile(filePath string) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		cmd := exec.CommandContext(ctx, "ffplay", 
-			"-autoexit",
-			"-nodisp",
-			"-loglevel", "quiet",
-			filePath)
-		
-		cmd.Run()
-	}()
-
-	waitForKeyPress()
-	cancel()
-	fmt.Println("Preview stopped.")
 }
 
 func calculateIntelligentAdjustments(sourceBPM float64, sourceKey string, targetBPM float64, targetKey string) (int, float64) {
@@ -198,7 +113,6 @@ func calculateKeyDifference(key1, key2 string) int {
 	
 	return diff
 }
-
 
 func clamp(value, min, max int) int {
 	if value < min {
