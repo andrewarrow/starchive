@@ -255,24 +255,24 @@ func (bs *BlendShell) run() {
 	}
 	
 	fmt.Printf("\nCommands:\n")
-	fmt.Printf("  /play                Play current blend\n")
-	fmt.Printf("  /pitch1 <n>          Adjust track 1 pitch (semitones)\n")
-	fmt.Printf("  /pitch2 <n>          Adjust track 2 pitch (semitones)\n")
-	fmt.Printf("  /tempo1 <n>          Adjust track 1 tempo (%%)\n")
-	fmt.Printf("  /tempo2 <n>          Adjust track 2 tempo (%%)\n")
-	fmt.Printf("  /volume1 <n>         Set track 1 volume (0-200)\n")
-	fmt.Printf("  /volume2 <n>         Set track 2 volume (0-200)\n")
-	fmt.Printf("  /window <n1> <n2>    Set track start offsets from middle (seconds)\n")
-	fmt.Printf("  /match bpm1to2       Match track 1 BPM to track 2\n")
-	fmt.Printf("  /match bpm2to1       Match track 2 BPM to track 1\n")
-	fmt.Printf("  /match key1to2       Match track 1 key to track 2\n")
-	fmt.Printf("  /match key2to1       Match track 2 key to track 1\n")
-	fmt.Printf("  /type1 <vocal|instrumental> Set track 1 type\n")
-	fmt.Printf("  /type2 <vocal|instrumental> Set track 2 type\n")
-	fmt.Printf("  /reset               Reset all adjustments\n")
-	fmt.Printf("  /status              Show current settings\n")
-	fmt.Printf("  /help                Show this help\n")
-	fmt.Printf("  /exit                Exit blend shell\n")
+	fmt.Printf("  play                 Play current blend\n")
+	fmt.Printf("  pitch1 <n>           Adjust track 1 pitch (semitones)\n")
+	fmt.Printf("  pitch2 <n>           Adjust track 2 pitch (semitones)\n")
+	fmt.Printf("  tempo1 <n>           Adjust track 1 tempo (%%)\n")
+	fmt.Printf("  tempo2 <n>           Adjust track 2 tempo (%%)\n")
+	fmt.Printf("  volume1 <n>          Set track 1 volume (0-200)\n")
+	fmt.Printf("  volume2 <n>          Set track 2 volume (0-200)\n")
+	fmt.Printf("  window <n1> <n2>     Set track start offsets from middle (seconds)\n")
+	fmt.Printf("  match bpm1to2        Match track 1 BPM to track 2\n")
+	fmt.Printf("  match bpm2to1        Match track 2 BPM to track 1\n")
+	fmt.Printf("  match key1to2        Match track 1 key to track 2\n")
+	fmt.Printf("  match key2to1        Match track 2 key to track 1\n")
+	fmt.Printf("  type1 <vocal|instrumental> Set track 1 type\n")
+	fmt.Printf("  type2 <vocal|instrumental> Set track 2 type\n")
+	fmt.Printf("  reset                Reset all adjustments\n")
+	fmt.Printf("  status               Show current settings\n")
+	fmt.Printf("  help                 Show this help\n")
+	fmt.Printf("  exit                 Exit blend shell\n")
 	fmt.Printf("\n")
 
 	bs.showStatus()
@@ -326,26 +326,30 @@ func (bs *BlendShell) handleCommand(input string) bool {
 	}
 	
 	cmd := parts[0]
+	// Remove leading slash if present for backward compatibility
+	if strings.HasPrefix(cmd, "/") {
+		cmd = cmd[1:]
+	}
 	args := parts[1:]
 	
 	switch cmd {
-	case "/exit", "/quit", "/q":
+	case "exit", "quit", "q":
 		fmt.Println("Exiting blend shell...")
 		return false
 		
-	case "/help", "/h":
+	case "help", "h":
 		bs.showHelp()
 		
-	case "/play", "/p":
+	case "play", "p":
 		bs.playBlend()
 		
-	case "/status", "/s":
+	case "status", "s":
 		bs.showStatus()
 		
-	case "/reset", "/r":
+	case "reset", "r":
 		bs.resetAdjustments()
 		
-	case "/pitch1":
+	case "pitch1":
 		if len(args) > 0 {
 			if val, err := strconv.Atoi(args[0]); err == nil {
 				bs.pitch1 = clamp(val, -12, 12)
@@ -357,7 +361,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 1 pitch: %+d semitones\n", bs.pitch1)
 		}
 		
-	case "/pitch2":
+	case "pitch2":
 		if len(args) > 0 {
 			if val, err := strconv.Atoi(args[0]); err == nil {
 				bs.pitch2 = clamp(val, -12, 12)
@@ -369,7 +373,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 2 pitch: %+d semitones\n", bs.pitch2)
 		}
 		
-	case "/tempo1":
+	case "tempo1":
 		if len(args) > 0 {
 			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
 				bs.tempo1 = clampFloat(val, -50.0, 100.0)
@@ -381,7 +385,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 1 tempo: %+.1f%%\n", bs.tempo1)
 		}
 		
-	case "/tempo2":
+	case "tempo2":
 		if len(args) > 0 {
 			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
 				bs.tempo2 = clampFloat(val, -50.0, 100.0)
@@ -393,7 +397,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 2 tempo: %+.1f%%\n", bs.tempo2)
 		}
 		
-	case "/volume1":
+	case "volume1":
 		if len(args) > 0 {
 			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
 				bs.volume1 = clampFloat(val, 0.0, 200.0)
@@ -405,7 +409,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 1 volume: %.0f%%\n", bs.volume1)
 		}
 		
-	case "/volume2":
+	case "volume2":
 		if len(args) > 0 {
 			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
 				bs.volume2 = clampFloat(val, 0.0, 200.0)
@@ -417,7 +421,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 2 volume: %.0f%%\n", bs.volume2)
 		}
 		
-	case "/type1":
+	case "type1":
 		if len(args) > 0 {
 			if args[0] == "vocal" || args[0] == "v" {
 				bs.type1 = "V"
@@ -434,7 +438,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 1 type: %s\n", bs.getTrackTypeDesc(bs.type1))
 		}
 		
-	case "/type2":
+	case "type2":
 		if len(args) > 0 {
 			if args[0] == "vocal" || args[0] == "v" {
 				bs.type2 = "V"
@@ -451,7 +455,7 @@ func (bs *BlendShell) handleCommand(input string) bool {
 			fmt.Printf("Current track 2 type: %s\n", bs.getTrackTypeDesc(bs.type2))
 		}
 		
-	case "/window":
+	case "window":
 		if len(args) >= 2 {
 			if val1, err1 := strconv.ParseFloat(args[0], 64); err1 == nil {
 				if val2, err2 := strconv.ParseFloat(args[1], 64); err2 == nil {
@@ -465,19 +469,19 @@ func (bs *BlendShell) handleCommand(input string) bool {
 				fmt.Printf("Invalid window offset for track 1: %s\n", args[0])
 			}
 		} else {
-			fmt.Printf("Usage: /window <track1_offset> <track2_offset>\n")
+			fmt.Printf("Usage: window <track1_offset> <track2_offset>\n")
 			fmt.Printf("Current window offsets: track 1 %+.1fs, track 2 %+.1fs\n", bs.window1, bs.window2)
 		}
 		
-	case "/match":
+	case "match":
 		if len(args) > 0 {
 			bs.handleMatchCommand(args[0])
 		} else {
-			fmt.Printf("Usage: /match <bpm1to2|bpm2to1|key1to2|key2to1>\n")
+			fmt.Printf("Usage: match <bpm1to2|bpm2to1|key1to2|key2to1>\n")
 		}
 		
 	default:
-		fmt.Printf("Unknown command: %s (type /help for commands)\n", cmd)
+		fmt.Printf("Unknown command: %s (type help for commands)\n", cmd)
 	}
 	
 	return true
@@ -571,27 +575,27 @@ func (bs *BlendShell) showStatus() {
 func (bs *BlendShell) showHelp() {
 	fmt.Printf("--- Blend Shell Commands ---\n")
 	fmt.Printf("Playback:\n")
-	fmt.Printf("  /play               Play current blend for 10 seconds\n")
+	fmt.Printf("  play                Play current blend for 10 seconds\n")
 	fmt.Printf("Adjustments:\n")
-	fmt.Printf("  /pitch1 <n>         Adjust track 1 pitch (-12 to +12 semitones)\n")
-	fmt.Printf("  /pitch2 <n>         Adjust track 2 pitch (-12 to +12 semitones)\n")
-	fmt.Printf("  /tempo1 <n>         Adjust track 1 tempo (-50 to +100%%)\n")
-	fmt.Printf("  /tempo2 <n>         Adjust track 2 tempo (-50 to +100%%)\n")
-	fmt.Printf("  /volume1 <n>        Set track 1 volume (0 to 200)\n")
-	fmt.Printf("  /volume2 <n>        Set track 2 volume (0 to 200)\n")
-	fmt.Printf("  /window <n1> <n2>   Set start offsets from middle (seconds)\n")
+	fmt.Printf("  pitch1 <n>          Adjust track 1 pitch (-12 to +12 semitones)\n")
+	fmt.Printf("  pitch2 <n>          Adjust track 2 pitch (-12 to +12 semitones)\n")
+	fmt.Printf("  tempo1 <n>          Adjust track 1 tempo (-50 to +100%%)\n")
+	fmt.Printf("  tempo2 <n>          Adjust track 2 tempo (-50 to +100%%)\n")
+	fmt.Printf("  volume1 <n>         Set track 1 volume (0 to 200)\n")
+	fmt.Printf("  volume2 <n>         Set track 2 volume (0 to 200)\n")
+	fmt.Printf("  window <n1> <n2>    Set start offsets from middle (seconds)\n")
 	fmt.Printf("Matching:\n")
-	fmt.Printf("  /match bpm1to2      Match track 1 BPM to track 2\n")
-	fmt.Printf("  /match bpm2to1      Match track 2 BPM to track 1\n")
-	fmt.Printf("  /match key1to2      Match track 1 key to track 2\n")
-	fmt.Printf("  /match key2to1      Match track 2 key to track 1\n")
+	fmt.Printf("  match bpm1to2       Match track 1 BPM to track 2\n")
+	fmt.Printf("  match bpm2to1       Match track 2 BPM to track 1\n")
+	fmt.Printf("  match key1to2       Match track 1 key to track 2\n")
+	fmt.Printf("  match key2to1       Match track 2 key to track 1\n")
 	fmt.Printf("Track Types:\n")
-	fmt.Printf("  /type1 <type>       Set track 1 type (vocal/instrumental)\n")
-	fmt.Printf("  /type2 <type>       Set track 2 type (vocal/instrumental)\n")
+	fmt.Printf("  type1 <type>        Set track 1 type (vocal/instrumental)\n")
+	fmt.Printf("  type2 <type>        Set track 2 type (vocal/instrumental)\n")
 	fmt.Printf("Utility:\n")
-	fmt.Printf("  /reset              Reset all adjustments to zero\n")
-	fmt.Printf("  /status             Show current settings\n")
-	fmt.Printf("  /exit               Exit blend shell\n")
+	fmt.Printf("  reset               Reset all adjustments to zero\n")
+	fmt.Printf("  status              Show current settings\n")
+	fmt.Printf("  exit                Exit blend shell\n")
 	fmt.Printf("\n")
 }
 
