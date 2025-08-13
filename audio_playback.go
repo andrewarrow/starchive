@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"database/sql"
 	"fmt"
 	"math"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
@@ -76,218 +77,18 @@ func handlePlayCommand() {
 
 func handleBlendCommand() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: starchive blend <id1> <id2> [volume1] [volume2] [adjustments...]")
+		fmt.Println("Usage: starchive blend <id1> <id2>")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
-		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s 100 50")
-		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s 100 50 I+tempo V-pitch")
-		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s 80 120 bpm2to1 key1to2")
-		fmt.Println("Volume: 0-200 (default: 100 for both tracks)")
-		fmt.Println("Adjustments: I+tempo, I-tempo, V+tempo, V-tempo, I+pitch, I-pitch, V+pitch, V-pitch")
-		fmt.Println("Matching:")
-		fmt.Println("  bpm1to2, bpm2to1 (sync BPM between tracks)")
-		fmt.Println("  key1to2, key2to1 (sync key between tracks)")
-		fmt.Println("Plays two tracks simultaneously with intelligent BPM/key-based adjustments for 10 seconds")
+		fmt.Println("Enters an interactive blend shell with real-time controls.")
 		os.Exit(1)
 	}
 
 	id1 := os.Args[2]
 	id2 := os.Args[3]
 	
-	// Parse volume parameters if provided
-	volume1 := 100.0
-	volume2 := 100.0
-	adjustments := os.Args[4:]
-	
-	// Check if first two arguments after the IDs are volume levels
-	if len(os.Args) >= 6 {
-		if vol1, err := strconv.Atoi(os.Args[4]); err == nil && vol1 >= 0 && vol1 <= 200 {
-			if vol2, err := strconv.Atoi(os.Args[5]); err == nil && vol2 >= 0 && vol2 <= 200 {
-				volume1 = float64(vol1)
-				volume2 = float64(vol2)
-				adjustments = os.Args[6:]
-			}
-		}
-	}
-
-	db, err := initDatabase()
-	if err != nil {
-		fmt.Printf("Error initializing database: %v\n", err)
-		os.Exit(1)
-	}
-	defer db.Close()
-
-	metadata1, found1 := getCachedMetadata(db, id1)
-	metadata2, found2 := getCachedMetadata(db, id2)
-
-	rand.Seed(time.Now().UnixNano())
-
-	var pitch1, pitch2 int
-	var tempo1, tempo2 float64
-	var type1, type2 string
-
-	if found1 && found2 && metadata1.BPM != nil && metadata2.BPM != nil && metadata1.Key != nil && metadata2.Key != nil {
-		bpm1 := *metadata1.BPM
-		bpm2 := *metadata2.BPM
-		key1 := *metadata1.Key
-		key2 := *metadata2.Key
-		
-		fmt.Printf("Using intelligent blending:\n")
-		fmt.Printf("  Track 1 (%s): %.1f BPM, %s\n", id1, bpm1, key1)
-		fmt.Printf("  Track 2 (%s): %.1f BPM, %s\n", id2, bpm2, key2)
-
-		type1, type2 = getOrAssignTrackTypes(id1, id2)
-		
-		pitch1, tempo1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2)
-		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
-		
-		pitch1, tempo1, pitch2, tempo2 = applyAndSaveAdjustments(id1, id2, pitch1, tempo1, pitch2, tempo2, type1, type2, adjustments, bpm1, bpm2, metadata1, metadata2)
-		
-		effectiveBPM1 := calculateEffectiveBPM(bpm1, tempo1)
-		effectiveBPM2 := calculateEffectiveBPM(bpm2, tempo2)
-		effectiveKey1 := calculateEffectiveKey(key1, pitch1)
-		effectiveKey2 := calculateEffectiveKey(key2, pitch2)
-		
-		fmt.Printf("Effective values:\n")
-		fmt.Printf("  Track 1 (%s): %.1f BPM, %s (was %.1f BPM, %s)\n", id1, effectiveBPM1, effectiveKey1, bpm1, key1)
-		fmt.Printf("  Track 2 (%s): %.1f BPM, %s (was %.1f BPM, %s)\n", id2, effectiveBPM2, effectiveKey2, bpm2, key2)
-	} else {
-		fmt.Printf("BPM/key data not available, using random adjustments\n")
-		
-		// Use smart file detection instead of pure random
-		type1, type2 = getOrAssignTrackTypes(id1, id2)
-
-		pitchRange := []int{-8, -6, -4, -2, 0, 2, 4, 6, 8}
-		tempoRange := []float64{-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0}
-
-		pitch1 = pitchRange[rand.Intn(len(pitchRange))]
-		tempo1 = tempoRange[rand.Intn(len(tempoRange))]
-		pitch2 = pitchRange[rand.Intn(len(pitchRange))]
-		tempo2 = tempoRange[rand.Intn(len(tempoRange))]
-	}
-
-	inputPath1 := getAudioFilename(id1, type1)
-	inputPath2 := getAudioFilename(id2, type2)
-
-	if _, err := os.Stat(inputPath1); os.IsNotExist(err) {
-		fmt.Printf("Error: Input file %s does not exist\n", inputPath1)
-		os.Exit(1)
-	}
-	if _, err := os.Stat(inputPath2); os.IsNotExist(err) {
-		fmt.Printf("Error: Input file %s does not exist\n", inputPath2)
-		os.Exit(1)
-	}
-
-	duration1, err := getAudioDuration(inputPath1)
-	if err != nil {
-		fmt.Printf("Error getting audio duration for %s: %v\n", inputPath1, err)
-		os.Exit(1)
-	}
-	duration2, err := getAudioDuration(inputPath2)
-	if err != nil {
-		fmt.Printf("Error getting audio duration for %s: %v\n", inputPath2, err)
-		os.Exit(1)
-	}
-
-	startPosition1 := duration1 / 2
-	startPosition2 := duration2 / 2
-
-	trackDesc1 := "instrumental"
-	if type1 == "V" {
-		trackDesc1 = "vocal"
-	}
-	trackDesc2 := "instrumental"
-	if type2 == "V" {
-		trackDesc2 = "vocal"
-	}
-
-	fmt.Printf("Blending tracks:\n")
-	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%, volume %.0f%%\n", id1, trackDesc1, pitch1, tempo1, volume1)
-	fmt.Printf("  %s (%s): pitch %+d semitones, tempo %+.1f%%, volume %.0f%%\n", id2, trackDesc2, pitch2, tempo2, volume2)
-	fmt.Printf("Playing for 10 seconds...\n")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	ffplayArgs1 := []string{
-		"-ss", fmt.Sprintf("%.1f", startPosition1),
-		"-t", "10",
-		"-autoexit",
-		"-nodisp",
-		"-loglevel", "quiet",
-	}
-	
-	if pitch1 != 0 || tempo1 != 0 || volume1 != 100 {
-		var filters []string
-		if tempo1 != 0 {
-			tempoMultiplier := 1.0 + (tempo1 / 100.0)
-			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
-				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
-			}
-		}
-		if pitch1 != 0 {
-			// Use rubberband-style pitch shifting that preserves tempo
-			pitchSemitones := float64(pitch1)
-			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
-				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
-		}
-		if volume1 != 100 {
-			volumeMultiplier := volume1 / 100.0
-			filters = append(filters, fmt.Sprintf("volume=%.6f", volumeMultiplier))
-		}
-		if len(filters) > 0 {
-			filter := strings.Join(filters, ",")
-			ffplayArgs1 = append(ffplayArgs1, "-af", filter)
-		}
-	}
-	
-	ffplayArgs1 = append(ffplayArgs1, inputPath1)
-
-	ffplayArgs2 := []string{
-		"-ss", fmt.Sprintf("%.1f", startPosition2),
-		"-t", "10",
-		"-autoexit",
-		"-nodisp",
-		"-loglevel", "quiet",
-	}
-	
-	if pitch2 != 0 || tempo2 != 0 || volume2 != 100 {
-		var filters []string
-		if tempo2 != 0 {
-			tempoMultiplier := 1.0 + (tempo2 / 100.0)
-			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
-				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
-			}
-		}
-		if pitch2 != 0 {
-			// Use rubberband-style pitch shifting that preserves tempo
-			pitchSemitones := float64(pitch2)
-			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
-				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
-		}
-		if volume2 != 100 {
-			volumeMultiplier := volume2 / 100.0
-			filters = append(filters, fmt.Sprintf("volume=%.6f", volumeMultiplier))
-		}
-		if len(filters) > 0 {
-			filter := strings.Join(filters, ",")
-			ffplayArgs2 = append(ffplayArgs2, "-af", filter)
-		}
-	}
-	
-	ffplayArgs2 = append(ffplayArgs2, inputPath2)
-
-	go func() {
-		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
-		cmd1.Run()
-	}()
-
-	go func() {
-		cmd2 := exec.CommandContext(ctx, "ffplay", ffplayArgs2...)
-		cmd2.Run()
-	}()
-
-	<-ctx.Done()
-	fmt.Println("Blend playback completed.")
+	// Initialize blend shell
+	blendShell := newBlendShell(id1, id2)
+	blendShell.run()
 }
 
 func handleBlendClearCommand() {
@@ -398,179 +199,6 @@ func calculateKeyDifference(key1, key2 string) int {
 	return diff
 }
 
-func getOrAssignTrackTypes(id1, id2 string) (string, string) {
-	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
-	
-	if data, err := os.ReadFile(tmpFile); err == nil {
-		parts := strings.Split(strings.TrimSpace(string(data)), ",")
-		if len(parts) >= 2 {
-			return parts[0], parts[1]
-		}
-	}
-	
-	// Check which files exist for each ID
-	id1HasVocal := hasVocalFile(id1)
-	id1HasInstrumental := hasInstrumentalFile(id1)
-	id2HasVocal := hasVocalFile(id2)
-	id2HasInstrumental := hasInstrumentalFile(id2)
-	
-	var type1, type2 string
-	
-	// Determine type1 (for id1)
-	if !id1HasVocal && id1HasInstrumental {
-		type1 = "I" // Only instrumental available
-	} else if id1HasVocal && !id1HasInstrumental {
-		type1 = "V" // Only vocal available
-	} else if id1HasVocal && id1HasInstrumental {
-		// Both available, choose randomly
-		if rand.Intn(2) == 0 {
-			type1 = "V"
-		} else {
-			type1 = "I"
-		}
-	} else {
-		// Neither available - this shouldn't happen, but default to "I"
-		type1 = "I"
-	}
-	
-	// Determine type2 (for id2)
-	if !id2HasVocal && id2HasInstrumental {
-		type2 = "I" // Only instrumental available
-	} else if id2HasVocal && !id2HasInstrumental {
-		type2 = "V" // Only vocal available
-	} else if id2HasVocal && id2HasInstrumental {
-		// Both available, choose randomly
-		if rand.Intn(2) == 0 {
-			type2 = "V"
-		} else {
-			type2 = "I"
-		}
-	} else {
-		// Neither available - this shouldn't happen, but default to "I"
-		type2 = "I"
-	}
-	
-	// Format: type1,type2,pitch1,tempo1,pitch2,tempo2
-	os.WriteFile(tmpFile, []byte(fmt.Sprintf("%s,%s,0,0,0,0", type1, type2)), 0644)
-	return type1, type2
-}
-
-func applyAndSaveAdjustments(id1, id2 string, basePitch1 int, baseTempo1 float64, basePitch2 int, baseTempo2 float64, type1, type2 string, adjustments []string, originalBPM1, originalBPM2 float64, metadata1, metadata2 *VideoMetadata) (int, float64, int, float64) {
-	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
-	
-	// Load existing adjustments
-	pitch1Adj, tempo1Adj, pitch2Adj, tempo2Adj := loadAccumulatedAdjustments(tmpFile)
-	
-	// Check for BPM and key matching first
-	for _, adj := range adjustments {
-		if adj == "bpm1to2" || adj == "match1to2" {
-			// Make track 1 BPM match track 2's original BPM - keep track 2 unchanged
-			targetBPM := originalBPM2
-			requiredRatio := targetBPM / originalBPM1
-			tempo1Adj = math.Round((requiredRatio - 1.0) * 100.0) - baseTempo1
-			// Reset track 2 to no adjustments to preserve original BPM
-			tempo2Adj = -baseTempo2
-			fmt.Printf("BPM Match: Setting track 1 to %.1f BPM to match track 2\n", targetBPM)
-		} else if adj == "bpm2to1" || adj == "match2to1" {
-			// Make track 2 BPM match track 1's original BPM - keep track 1 unchanged
-			targetBPM := originalBPM1
-			requiredRatio := targetBPM / originalBPM2
-			requiredTotalTempo := (requiredRatio - 1.0) * 100.0
-			tempo2Adj = requiredTotalTempo - baseTempo2
-			// Reset track 1 to no adjustments to preserve original BPM
-			tempo1Adj = -baseTempo1
-			
-			fmt.Printf("BPM Match: Setting track 2 to %.1f BPM to match track 1\n", targetBPM)
-		} else if adj == "key1to2" {
-			// Make both tracks match track 2's key - override base pitch for both
-			keyDiff1 := calculateKeyDifference(*metadata1.Key, *metadata2.Key)
-			pitch1Adj = keyDiff1 - basePitch1  // Track 1 to target key
-			pitch2Adj = 0 - basePitch2         // Track 2 stays in original key (cancel base adjustment)
-			fmt.Printf("Key Match: Setting both tracks to %s\n", *metadata2.Key)
-		} else if adj == "key2to1" {
-			// Make both tracks match track 1's key - override base pitch for both
-			keyDiff2 := calculateKeyDifference(*metadata2.Key, *metadata1.Key)
-			pitch1Adj = 0 - basePitch1         // Track 1 stays in original key (cancel base adjustment)
-			pitch2Adj = keyDiff2 - basePitch2  // Track 2 to target key
-			fmt.Printf("Key Match: Setting both tracks to %s\n", *metadata1.Key)
-		}
-	}
-	
-	// Apply other adjustments
-	for _, adj := range adjustments {
-		if adj == "bpm1to2" || adj == "bpm2to1" || adj == "key1to2" || adj == "key2to1" || 
-		   adj == "match1to2" || adj == "match2to1" {
-			continue
-		}
-		if len(adj) < 3 {
-			continue
-		}
-		
-		trackPrefix := adj[0:1]
-		operation := adj[1:2]
-		param := adj[2:]
-		
-		if trackPrefix == type1 {
-			if param == "tempo" {
-				if operation == "+" {
-					tempo1Adj += 10.0
-				} else if operation == "-" {
-					tempo1Adj -= 10.0
-				}
-			} else if param == "pitch" {
-				if operation == "+" {
-					pitch1Adj += 2
-				} else if operation == "-" {
-					pitch1Adj -= 2
-				}
-			}
-		} else if trackPrefix == type2 {
-			if param == "tempo" {
-				if operation == "+" {
-					tempo2Adj += 10.0
-				} else if operation == "-" {
-					tempo2Adj -= 10.0
-				}
-			} else if param == "pitch" {
-				if operation == "+" {
-					pitch2Adj += 2
-				} else if operation == "-" {
-					pitch2Adj -= 2
-				}
-			}
-		}
-	}
-	
-	// Apply limits
-	tempo1Adj = clampFloat(tempo1Adj, -50.0, 50.0)
-	tempo2Adj = clampFloat(tempo2Adj, -50.0, 50.0)
-	pitch1Adj = clamp(pitch1Adj, -12, 12)
-	pitch2Adj = clamp(pitch2Adj, -12, 12)
-	
-	// Save back to file
-	saveAccumulatedAdjustments(tmpFile, type1, type2, pitch1Adj, tempo1Adj, pitch2Adj, tempo2Adj)
-	
-	return basePitch1 + pitch1Adj, baseTempo1 + tempo1Adj, basePitch2 + pitch2Adj, baseTempo2 + tempo2Adj
-}
-
-func loadAccumulatedAdjustments(tmpFile string) (int, float64, int, float64) {
-	if data, err := os.ReadFile(tmpFile); err == nil {
-		parts := strings.Split(strings.TrimSpace(string(data)), ",")
-		if len(parts) == 6 {
-			pitch1, _ := strconv.Atoi(parts[2])
-			tempo1, _ := strconv.ParseFloat(parts[3], 64)
-			pitch2, _ := strconv.Atoi(parts[4])
-			tempo2, _ := strconv.ParseFloat(parts[5], 64)
-			return pitch1, tempo1, pitch2, tempo2
-		}
-	}
-	return 0, 0, 0, 0
-}
-
-func saveAccumulatedAdjustments(tmpFile, type1, type2 string, pitch1 int, tempo1 float64, pitch2 int, tempo2 float64) {
-	data := fmt.Sprintf("%s,%s,%d,%.3f,%d,%.3f", type1, type2, pitch1, tempo1, pitch2, tempo2)
-	os.WriteFile(tmpFile, []byte(data), 0644)
-}
 
 func clamp(value, min, max int) int {
 	if value < min {
@@ -626,4 +254,501 @@ func calculateEffectiveKey(originalKey string, pitchAdjustment int) string {
 	}
 	
 	return originalKey
+}
+
+type BlendShell struct {
+	id1, id2           string
+	metadata1, metadata2 *VideoMetadata
+	type1, type2       string
+	pitch1, pitch2     int
+	tempo1, tempo2     float64
+	volume1, volume2   float64
+	duration1, duration2 float64
+	inputPath1, inputPath2 string
+	db                 *sql.DB
+}
+
+func newBlendShell(id1, id2 string) *BlendShell {
+	db, err := initDatabase()
+	if err != nil {
+		fmt.Printf("Error initializing database: %v\n", err)
+		os.Exit(1)
+	}
+
+	metadata1, found1 := getCachedMetadata(db, id1)
+	metadata2, found2 := getCachedMetadata(db, id2)
+
+	if !found1 {
+		fmt.Printf("Warning: No metadata found for %s\n", id1)
+	}
+	if !found2 {
+		fmt.Printf("Warning: No metadata found for %s\n", id2)
+	}
+
+	type1, type2 := detectTrackTypes(id1, id2)
+	
+	shell := &BlendShell{
+		id1:       id1,
+		id2:       id2,
+		metadata1: metadata1,
+		metadata2: metadata2,
+		type1:     type1,
+		type2:     type2,
+		pitch1:    0,
+		pitch2:    0,
+		tempo1:    0.0,
+		tempo2:    0.0,
+		volume1:   100.0,
+		volume2:   100.0,
+		db:        db,
+	}
+
+	shell.inputPath1 = getAudioFilename(id1, type1)
+	shell.inputPath2 = getAudioFilename(id2, type2)
+
+	if _, err := os.Stat(shell.inputPath1); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", shell.inputPath1)
+		os.Exit(1)
+	}
+	if _, err := os.Stat(shell.inputPath2); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", shell.inputPath2)
+		os.Exit(1)
+	}
+
+	shell.duration1, _ = getAudioDuration(shell.inputPath1)
+	shell.duration2, _ = getAudioDuration(shell.inputPath2)
+
+	return shell
+}
+
+func (bs *BlendShell) run() {
+	defer bs.db.Close()
+	
+	fmt.Printf("=== Blend Shell ===\n")
+	fmt.Printf("Track 1: %s (%s)\n", bs.id1, bs.getTrackTypeDesc(bs.type1))
+	fmt.Printf("Track 2: %s (%s)\n", bs.id2, bs.getTrackTypeDesc(bs.type2))
+	
+	if bs.metadata1 != nil && bs.metadata1.BPM != nil && bs.metadata1.Key != nil {
+		fmt.Printf("  %.1f BPM, %s\n", *bs.metadata1.BPM, *bs.metadata1.Key)
+	}
+	if bs.metadata2 != nil && bs.metadata2.BPM != nil && bs.metadata2.Key != nil {
+		fmt.Printf("  %.1f BPM, %s\n", *bs.metadata2.BPM, *bs.metadata2.Key)
+	}
+	
+	fmt.Printf("\nCommands:\n")
+	fmt.Printf("  /play                Play current blend\n")
+	fmt.Printf("  /pitch1 <n>          Adjust track 1 pitch (semitones)\n")
+	fmt.Printf("  /pitch2 <n>          Adjust track 2 pitch (semitones)\n")
+	fmt.Printf("  /tempo1 <n>          Adjust track 1 tempo (%%)\n")
+	fmt.Printf("  /tempo2 <n>          Adjust track 2 tempo (%%)\n")
+	fmt.Printf("  /volume1 <n>         Set track 1 volume (0-200)\n")
+	fmt.Printf("  /volume2 <n>         Set track 2 volume (0-200)\n")
+	fmt.Printf("  /match bpm1to2       Match track 1 BPM to track 2\n")
+	fmt.Printf("  /match bpm2to1       Match track 2 BPM to track 1\n")
+	fmt.Printf("  /match key1to2       Match track 1 key to track 2\n")
+	fmt.Printf("  /match key2to1       Match track 2 key to track 1\n")
+	fmt.Printf("  /type1 <vocal|instrumental> Set track 1 type\n")
+	fmt.Printf("  /type2 <vocal|instrumental> Set track 2 type\n")
+	fmt.Printf("  /reset               Reset all adjustments\n")
+	fmt.Printf("  /status              Show current settings\n")
+	fmt.Printf("  /help                Show this help\n")
+	fmt.Printf("  /exit                Exit blend shell\n")
+	fmt.Printf("\n")
+
+	bs.showStatus()
+	
+	reader := bufio.NewReader(os.Stdin)
+	
+	for {
+		fmt.Printf("blend> ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("Error reading input: %v\n", err)
+			break
+		}
+		
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+		
+		if !bs.handleCommand(input) {
+			break
+		}
+	}
+}
+
+func (bs *BlendShell) handleCommand(input string) bool {
+	parts := strings.Fields(input)
+	if len(parts) == 0 {
+		return true
+	}
+	
+	cmd := parts[0]
+	args := parts[1:]
+	
+	switch cmd {
+	case "/exit", "/quit", "/q":
+		fmt.Println("Exiting blend shell...")
+		return false
+		
+	case "/help", "/h":
+		bs.showHelp()
+		
+	case "/play", "/p":
+		bs.playBlend()
+		
+	case "/status", "/s":
+		bs.showStatus()
+		
+	case "/reset", "/r":
+		bs.resetAdjustments()
+		
+	case "/pitch1":
+		if len(args) > 0 {
+			if val, err := strconv.Atoi(args[0]); err == nil {
+				bs.pitch1 = clamp(val, -12, 12)
+				fmt.Printf("Track 1 pitch: %+d semitones\n", bs.pitch1)
+			} else {
+				fmt.Printf("Invalid pitch value: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 1 pitch: %+d semitones\n", bs.pitch1)
+		}
+		
+	case "/pitch2":
+		if len(args) > 0 {
+			if val, err := strconv.Atoi(args[0]); err == nil {
+				bs.pitch2 = clamp(val, -12, 12)
+				fmt.Printf("Track 2 pitch: %+d semitones\n", bs.pitch2)
+			} else {
+				fmt.Printf("Invalid pitch value: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 2 pitch: %+d semitones\n", bs.pitch2)
+		}
+		
+	case "/tempo1":
+		if len(args) > 0 {
+			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
+				bs.tempo1 = clampFloat(val, -50.0, 100.0)
+				fmt.Printf("Track 1 tempo: %+.1f%%\n", bs.tempo1)
+			} else {
+				fmt.Printf("Invalid tempo value: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 1 tempo: %+.1f%%\n", bs.tempo1)
+		}
+		
+	case "/tempo2":
+		if len(args) > 0 {
+			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
+				bs.tempo2 = clampFloat(val, -50.0, 100.0)
+				fmt.Printf("Track 2 tempo: %+.1f%%\n", bs.tempo2)
+			} else {
+				fmt.Printf("Invalid tempo value: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 2 tempo: %+.1f%%\n", bs.tempo2)
+		}
+		
+	case "/volume1":
+		if len(args) > 0 {
+			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
+				bs.volume1 = clampFloat(val, 0.0, 200.0)
+				fmt.Printf("Track 1 volume: %.0f%%\n", bs.volume1)
+			} else {
+				fmt.Printf("Invalid volume value: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 1 volume: %.0f%%\n", bs.volume1)
+		}
+		
+	case "/volume2":
+		if len(args) > 0 {
+			if val, err := strconv.ParseFloat(args[0], 64); err == nil {
+				bs.volume2 = clampFloat(val, 0.0, 200.0)
+				fmt.Printf("Track 2 volume: %.0f%%\n", bs.volume2)
+			} else {
+				fmt.Printf("Invalid volume value: %s\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 2 volume: %.0f%%\n", bs.volume2)
+		}
+		
+	case "/type1":
+		if len(args) > 0 {
+			if args[0] == "vocal" || args[0] == "v" {
+				bs.type1 = "V"
+				bs.inputPath1 = getAudioFilename(bs.id1, bs.type1)
+				fmt.Printf("Track 1 type: vocal\n")
+			} else if args[0] == "instrumental" || args[0] == "i" {
+				bs.type1 = "I"
+				bs.inputPath1 = getAudioFilename(bs.id1, bs.type1)
+				fmt.Printf("Track 1 type: instrumental\n")
+			} else {
+				fmt.Printf("Invalid type: %s (use 'vocal' or 'instrumental')\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 1 type: %s\n", bs.getTrackTypeDesc(bs.type1))
+		}
+		
+	case "/type2":
+		if len(args) > 0 {
+			if args[0] == "vocal" || args[0] == "v" {
+				bs.type2 = "V"
+				bs.inputPath2 = getAudioFilename(bs.id2, bs.type2)
+				fmt.Printf("Track 2 type: vocal\n")
+			} else if args[0] == "instrumental" || args[0] == "i" {
+				bs.type2 = "I"
+				bs.inputPath2 = getAudioFilename(bs.id2, bs.type2)
+				fmt.Printf("Track 2 type: instrumental\n")
+			} else {
+				fmt.Printf("Invalid type: %s (use 'vocal' or 'instrumental')\n", args[0])
+			}
+		} else {
+			fmt.Printf("Current track 2 type: %s\n", bs.getTrackTypeDesc(bs.type2))
+		}
+		
+	case "/match":
+		if len(args) > 0 {
+			bs.handleMatchCommand(args[0])
+		} else {
+			fmt.Printf("Usage: /match <bpm1to2|bpm2to1|key1to2|key2to1>\n")
+		}
+		
+	default:
+		fmt.Printf("Unknown command: %s (type /help for commands)\n", cmd)
+	}
+	
+	return true
+}
+
+func (bs *BlendShell) handleMatchCommand(matchType string) {
+	if bs.metadata1 == nil || bs.metadata2 == nil {
+		fmt.Printf("Cannot match - missing metadata\n")
+		return
+	}
+	
+	switch matchType {
+	case "bpm1to2":
+		if bs.metadata1.BPM != nil && bs.metadata2.BPM != nil {
+			bpm1 := *bs.metadata1.BPM
+			bpm2 := *bs.metadata2.BPM
+			requiredRatio := bpm2 / bpm1
+			bs.tempo1 = (requiredRatio - 1.0) * 100.0
+			bs.tempo2 = 0.0
+			fmt.Printf("Matched track 1 BPM (%.1f) to track 2 BPM (%.1f)\n", bpm1, bpm2)
+			fmt.Printf("Track 1 tempo: %+.1f%%\n", bs.tempo1)
+		} else {
+			fmt.Printf("BPM data not available\n")
+		}
+		
+	case "bpm2to1":
+		if bs.metadata1.BPM != nil && bs.metadata2.BPM != nil {
+			bpm1 := *bs.metadata1.BPM
+			bpm2 := *bs.metadata2.BPM
+			requiredRatio := bpm1 / bpm2
+			bs.tempo2 = (requiredRatio - 1.0) * 100.0
+			bs.tempo1 = 0.0
+			fmt.Printf("Matched track 2 BPM (%.1f) to track 1 BPM (%.1f)\n", bpm2, bpm1)
+			fmt.Printf("Track 2 tempo: %+.1f%%\n", bs.tempo2)
+		} else {
+			fmt.Printf("BPM data not available\n")
+		}
+		
+	case "key1to2":
+		if bs.metadata1.Key != nil && bs.metadata2.Key != nil {
+			key1 := *bs.metadata1.Key
+			key2 := *bs.metadata2.Key
+			bs.pitch1 = calculateKeyDifference(key1, key2)
+			bs.pitch2 = 0
+			fmt.Printf("Matched track 1 key (%s) to track 2 key (%s)\n", key1, key2)
+			fmt.Printf("Track 1 pitch: %+d semitones\n", bs.pitch1)
+		} else {
+			fmt.Printf("Key data not available\n")
+		}
+		
+	case "key2to1":
+		if bs.metadata1.Key != nil && bs.metadata2.Key != nil {
+			key1 := *bs.metadata1.Key
+			key2 := *bs.metadata2.Key
+			bs.pitch2 = calculateKeyDifference(key2, key1)
+			bs.pitch1 = 0
+			fmt.Printf("Matched track 2 key (%s) to track 1 key (%s)\n", key2, key1)
+			fmt.Printf("Track 2 pitch: %+d semitones\n", bs.pitch2)
+		} else {
+			fmt.Printf("Key data not available\n")
+		}
+		
+	default:
+		fmt.Printf("Unknown match type: %s\n", matchType)
+		fmt.Printf("Available: bpm1to2, bpm2to1, key1to2, key2to1\n")
+	}
+}
+
+func (bs *BlendShell) showStatus() {
+	fmt.Printf("--- Current Settings ---\n")
+	fmt.Printf("Track 1 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%\n", 
+		bs.id1, bs.getTrackTypeDesc(bs.type1), bs.pitch1, bs.tempo1, bs.volume1)
+	fmt.Printf("Track 2 (%s %s): pitch %+d, tempo %+.1f%%, volume %.0f%%\n", 
+		bs.id2, bs.getTrackTypeDesc(bs.type2), bs.pitch2, bs.tempo2, bs.volume2)
+		
+	if bs.metadata1 != nil && bs.metadata1.BPM != nil && bs.metadata1.Key != nil {
+		effectiveBPM1 := calculateEffectiveBPM(*bs.metadata1.BPM, bs.tempo1)
+		effectiveKey1 := calculateEffectiveKey(*bs.metadata1.Key, bs.pitch1)
+		fmt.Printf("  Effective: %.1f BPM, %s (was %.1f BPM, %s)\n", 
+			effectiveBPM1, effectiveKey1, *bs.metadata1.BPM, *bs.metadata1.Key)
+	}
+	if bs.metadata2 != nil && bs.metadata2.BPM != nil && bs.metadata2.Key != nil {
+		effectiveBPM2 := calculateEffectiveBPM(*bs.metadata2.BPM, bs.tempo2)
+		effectiveKey2 := calculateEffectiveKey(*bs.metadata2.Key, bs.pitch2)
+		fmt.Printf("  Effective: %.1f BPM, %s (was %.1f BPM, %s)\n", 
+			effectiveBPM2, effectiveKey2, *bs.metadata2.BPM, *bs.metadata2.Key)
+	}
+	fmt.Printf("\n")
+}
+
+func (bs *BlendShell) showHelp() {
+	fmt.Printf("--- Blend Shell Commands ---\n")
+	fmt.Printf("Playback:\n")
+	fmt.Printf("  /play               Play current blend for 10 seconds\n")
+	fmt.Printf("Adjustments:\n")
+	fmt.Printf("  /pitch1 <n>         Adjust track 1 pitch (-12 to +12 semitones)\n")
+	fmt.Printf("  /pitch2 <n>         Adjust track 2 pitch (-12 to +12 semitones)\n")
+	fmt.Printf("  /tempo1 <n>         Adjust track 1 tempo (-50 to +100%%)\n")
+	fmt.Printf("  /tempo2 <n>         Adjust track 2 tempo (-50 to +100%%)\n")
+	fmt.Printf("  /volume1 <n>        Set track 1 volume (0 to 200)\n")
+	fmt.Printf("  /volume2 <n>        Set track 2 volume (0 to 200)\n")
+	fmt.Printf("Matching:\n")
+	fmt.Printf("  /match bpm1to2      Match track 1 BPM to track 2\n")
+	fmt.Printf("  /match bpm2to1      Match track 2 BPM to track 1\n")
+	fmt.Printf("  /match key1to2      Match track 1 key to track 2\n")
+	fmt.Printf("  /match key2to1      Match track 2 key to track 1\n")
+	fmt.Printf("Track Types:\n")
+	fmt.Printf("  /type1 <type>       Set track 1 type (vocal/instrumental)\n")
+	fmt.Printf("  /type2 <type>       Set track 2 type (vocal/instrumental)\n")
+	fmt.Printf("Utility:\n")
+	fmt.Printf("  /reset              Reset all adjustments to zero\n")
+	fmt.Printf("  /status             Show current settings\n")
+	fmt.Printf("  /exit               Exit blend shell\n")
+	fmt.Printf("\n")
+}
+
+func (bs *BlendShell) resetAdjustments() {
+	bs.pitch1 = 0
+	bs.pitch2 = 0
+	bs.tempo1 = 0.0
+	bs.tempo2 = 0.0
+	bs.volume1 = 100.0
+	bs.volume2 = 100.0
+	fmt.Printf("All adjustments reset to defaults\n")
+}
+
+func (bs *BlendShell) getTrackTypeDesc(trackType string) string {
+	if trackType == "V" {
+		return "vocal"
+	}
+	return "instrumental"
+}
+
+func (bs *BlendShell) playBlend() {
+	startPosition1 := bs.duration1 / 2
+	startPosition2 := bs.duration2 / 2
+
+	fmt.Printf("Playing blend for 10 seconds...\n")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1)
+	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2)
+
+	go func() {
+		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
+		cmd1.Run()
+	}()
+
+	go func() {
+		cmd2 := exec.CommandContext(ctx, "ffplay", ffplayArgs2...)
+		cmd2.Run()
+	}()
+
+	<-ctx.Done()
+	fmt.Printf("Playback completed.\n\n")
+}
+
+func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch int, tempo float64, volume float64) []string {
+	args := []string{
+		"-ss", fmt.Sprintf("%.1f", startPos),
+		"-t", "10",
+		"-autoexit",
+		"-nodisp",
+		"-loglevel", "quiet",
+	}
+
+	if pitch != 0 || tempo != 0 || volume != 100 {
+		var filters []string
+		
+		if tempo != 0 {
+			tempoMultiplier := 1.0 + (tempo / 100.0)
+			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
+				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
+			}
+		}
+		
+		if pitch != 0 {
+			pitchSemitones := float64(pitch)
+			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
+				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
+		}
+		
+		if volume != 100 {
+			volumeMultiplier := volume / 100.0
+			filters = append(filters, fmt.Sprintf("volume=%.6f", volumeMultiplier))
+		}
+		
+		if len(filters) > 0 {
+			filter := strings.Join(filters, ",")
+			args = append(args, "-af", filter)
+		}
+	}
+
+	args = append(args, inputPath)
+	return args
+}
+
+func detectTrackTypes(id1, id2 string) (string, string) {
+	id1HasVocal := hasVocalFile(id1)
+	id1HasInstrumental := hasInstrumentalFile(id1)
+	id2HasVocal := hasVocalFile(id2)
+	id2HasInstrumental := hasInstrumentalFile(id2)
+
+	var type1, type2 string
+
+	if !id1HasVocal && id1HasInstrumental {
+		type1 = "I"
+	} else if id1HasVocal && !id1HasInstrumental {
+		type1 = "V"
+	} else if id1HasVocal && id1HasInstrumental {
+		type1 = "I"
+	} else {
+		type1 = "I"
+	}
+
+	if !id2HasVocal && id2HasInstrumental {
+		type2 = "I"
+	} else if id2HasVocal && !id2HasInstrumental {
+		type2 = "V"
+	} else if id2HasVocal && id2HasInstrumental {
+		if type1 == "I" {
+			type2 = "V"
+		} else {
+			type2 = "I"
+		}
+	} else {
+		type2 = "I"
+	}
+
+	return type1, type2
 }
