@@ -74,14 +74,17 @@ func handlePlayCommand() {
 
 func handleBlendCommand() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: starchive blend <id1> <id2>")
+		fmt.Println("Usage: starchive blend <id1> <id2> [adjustments...]")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
+		fmt.Println("         starchive blend OIduTH7NYA8 EbD7lfrsY2s I+tempo V-pitch")
+		fmt.Println("Adjustments: I+tempo, I-tempo, V+tempo, V-tempo, I+pitch, I-pitch, V+pitch, V-pitch")
 		fmt.Println("Plays two tracks simultaneously with intelligent BPM/key-based adjustments for 10 seconds")
 		os.Exit(1)
 	}
 
 	id1 := os.Args[2]
 	id2 := os.Args[3]
+	adjustments := os.Args[4:]
 
 	db, err := initDatabase()
 	if err != nil {
@@ -108,15 +111,13 @@ func handleBlendCommand() {
 		fmt.Printf("  Track 1 (%s): %.1f BPM, %s\n", id1, bpm1, key1)
 		fmt.Printf("  Track 2 (%s): %.1f BPM, %s\n", id2, bpm2, key2)
 
-		audioTypes := []string{"V", "I"}
-		rand.Shuffle(len(audioTypes), func(i, j int) {
-			audioTypes[i], audioTypes[j] = audioTypes[j], audioTypes[i]
-		})
-		type1 = audioTypes[0]
-		type2 = audioTypes[1]
+		type1, type2 = getOrAssignTrackTypes(id1, id2)
 		
 		pitch1, tempo1 = calculateIntelligentAdjustments(bpm1, key1, bpm2, key2)
 		pitch2, tempo2 = calculateIntelligentAdjustments(bpm2, key2, bpm1, key1)
+		
+		pitch1, tempo1 = applyAdjustments(pitch1, tempo1, type1, adjustments)
+		pitch2, tempo2 = applyAdjustments(pitch2, tempo2, type2, adjustments)
 	} else {
 		fmt.Printf("BPM/key data not available, using random adjustments\n")
 		
@@ -308,4 +309,72 @@ func calculateKeyDifference(key1, key2 string) int {
 	}
 	
 	return diff
+}
+
+func getOrAssignTrackTypes(id1, id2 string) (string, string) {
+	tmpFile := "/tmp/starchive_blend_" + id1 + "_" + id2 + ".tmp"
+	
+	if data, err := os.ReadFile(tmpFile); err == nil {
+		parts := strings.Split(strings.TrimSpace(string(data)), ",")
+		if len(parts) == 2 {
+			return parts[0], parts[1]
+		}
+	}
+	
+	audioTypes := []string{"V", "I"}
+	rand.Shuffle(len(audioTypes), func(i, j int) {
+		audioTypes[i], audioTypes[j] = audioTypes[j], audioTypes[i]
+	})
+	type1, type2 := audioTypes[0], audioTypes[1]
+	
+	os.WriteFile(tmpFile, []byte(type1+","+type2), 0644)
+	return type1, type2
+}
+
+func applyAdjustments(basePitch, baseTempo int, trackType string, adjustments []string) (int, int) {
+	pitch := basePitch
+	tempo := baseTempo
+	
+	for _, adj := range adjustments {
+		if len(adj) < 3 {
+			continue
+		}
+		
+		trackPrefix := adj[0:1]
+		if trackPrefix != trackType {
+			continue
+		}
+		
+		operation := adj[1:2]
+		param := adj[2:]
+		
+		switch param {
+		case "tempo":
+			if operation == "+" {
+				tempo += 10
+			} else if operation == "-" {
+				tempo -= 10
+			}
+		case "pitch":
+			if operation == "+" {
+				pitch += 2
+			} else if operation == "-" {
+				pitch -= 2
+			}
+		}
+	}
+	
+	if tempo > 50 {
+		tempo = 50
+	} else if tempo < -50 {
+		tempo = -50
+	}
+	
+	if pitch > 12 {
+		pitch = 12
+	} else if pitch < -12 {
+		pitch = -12
+	}
+	
+	return pitch, tempo
 }
