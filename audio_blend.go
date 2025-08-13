@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -172,6 +173,14 @@ func calculateEffectiveKey(originalKey string, pitchAdjustment int) string {
 	return originalKey
 }
 
+type VocalSegment struct {
+	Index     int     `json:"index"`
+	StartTime float64 `json:"start_time"`
+	Duration  float64 `json:"duration"`
+	Placement float64 `json:"placement"` // Where to place in target track
+	Active    bool    `json:"active"`    // Whether this segment is enabled
+}
+
 type BlendShell struct {
 	id1, id2           string
 	metadata1, metadata2 *VideoMetadata
@@ -184,6 +193,8 @@ type BlendShell struct {
 	inputPath1, inputPath2 string
 	db                 *sql.DB
 	previousBPMMatch, previousKeyMatch string
+	segments1, segments2 []VocalSegment // Vocal segments for each track
+	segmentsDir1, segmentsDir2 string   // Directories containing split files
 }
 
 func newBlendShell(id1, id2 string) *BlendShell {
@@ -221,6 +232,10 @@ func newBlendShell(id1, id2 string) *BlendShell {
 		window1:   0.0,
 		window2:   0.0,
 		db:        db,
+		segments1: []VocalSegment{},
+		segments2: []VocalSegment{},
+		segmentsDir1: fmt.Sprintf("./data/%s", id1),
+		segmentsDir2: fmt.Sprintf("./data/%s", id2),
 	}
 
 	shell.inputPath1 = getAudioFilename(id1, type1)
@@ -271,6 +286,13 @@ func (bs *BlendShell) run() {
 	fmt.Printf("  invert               Reset and intelligently match tracks\n")
 	fmt.Printf("  type1 <vocal|instrumental> Set track 1 type\n")
 	fmt.Printf("  type2 <vocal|instrumental> Set track 2 type\n")
+	fmt.Printf("  split <1|2>          Split track into vocal segments\n")
+	fmt.Printf("  segments [1|2]       List vocal segments\n")
+	fmt.Printf("  place <track:seg> at <time> Place segment at specific time\n")
+	fmt.Printf("  shift <track:seg> <+/-time> Adjust segment timing\n")
+	fmt.Printf("  toggle <track:seg>   Enable/disable segment\n")
+	fmt.Printf("  preview <track:seg>  Preview single segment\n")
+	fmt.Printf("  random <track>       Randomly place all segments\n")
 	fmt.Printf("  reset                Reset all adjustments\n")
 	fmt.Printf("  status               Show current settings\n")
 	fmt.Printf("  help                 Show this help\n")
@@ -486,6 +508,60 @@ func (bs *BlendShell) handleCommand(input string) bool {
 	case "invert":
 		bs.handleInvertCommand()
 		
+	case "split":
+		if len(args) > 0 {
+			bs.handleSplitCommand(args[0])
+		} else {
+			fmt.Printf("Usage: split <1|2>\n")
+		}
+		
+	case "segments":
+		if len(args) > 0 {
+			bs.handleSegmentsCommand(args[0])
+		} else {
+			bs.handleSegmentsCommand("")
+		}
+		
+	case "place":
+		if len(args) >= 3 && args[1] == "at" {
+			bs.handlePlaceCommand(args[0], args[2])
+		} else {
+			fmt.Printf("Usage: place <track:seg> at <time>\n")
+			fmt.Printf("Example: place 1:3 at 45.2\n")
+		}
+		
+	case "shift":
+		if len(args) >= 2 {
+			bs.handleShiftCommand(args[0], args[1])
+		} else {
+			fmt.Printf("Usage: shift <track:seg> <+/-time>\n")
+			fmt.Printf("Example: shift 1:3 +2.5\n")
+		}
+		
+	case "toggle":
+		if len(args) > 0 {
+			bs.handleToggleCommand(args[0])
+		} else {
+			fmt.Printf("Usage: toggle <track:seg>\n")
+			fmt.Printf("Example: toggle 1:3\n")
+		}
+		
+	case "preview":
+		if len(args) > 0 {
+			bs.handlePreviewCommand(args[0])
+		} else {
+			fmt.Printf("Usage: preview <track:seg>\n")
+			fmt.Printf("Example: preview 1:3\n")
+		}
+		
+	case "random":
+		if len(args) > 0 {
+			bs.handleRandomCommand(args[0])
+		} else {
+			fmt.Printf("Usage: random <1|2>\n")
+			fmt.Printf("Example: random 1\n")
+		}
+		
 	default:
 		fmt.Printf("Unknown command: %s (type help for commands)\n", cmd)
 	}
@@ -689,6 +765,22 @@ func (bs *BlendShell) completer() readline.AutoCompleter {
 			readline.PcItem("vocal"),
 			readline.PcItem("instrumental"),
 		),
+		readline.PcItem("split",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+		),
+		readline.PcItem("segments",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+		),
+		readline.PcItem("place"),
+		readline.PcItem("shift"),
+		readline.PcItem("toggle"),
+		readline.PcItem("preview"),
+		readline.PcItem("random",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+		),
 		readline.PcItem("invert"),
 		readline.PcItem("reset"),
 		readline.PcItem("status"),
@@ -716,6 +808,21 @@ func (bs *BlendShell) showStatus() {
 		fmt.Printf("  Effective: %.1f BPM, %s (was %.1f BPM, %s)\n", 
 			effectiveBPM2, effectiveKey2, *bs.metadata2.BPM, *bs.metadata2.Key)
 	}
+	
+	// Show segment information
+	activeSegments1 := 0
+	activeSegments2 := 0
+	for _, seg := range bs.segments1 {
+		if seg.Active { activeSegments1++ }
+	}
+	for _, seg := range bs.segments2 {
+		if seg.Active { activeSegments2++ }
+	}
+	
+	if len(bs.segments1) > 0 || len(bs.segments2) > 0 {
+		fmt.Printf("Segments: Track 1: %d/%d active, Track 2: %d/%d active\n", 
+			activeSegments1, len(bs.segments1), activeSegments2, len(bs.segments2))
+	}
 	fmt.Printf("\n")
 }
 
@@ -740,6 +847,14 @@ func (bs *BlendShell) showHelp() {
 	fmt.Printf("Track Types:\n")
 	fmt.Printf("  type1 <type>        Set track 1 type (vocal/instrumental)\n")
 	fmt.Printf("  type2 <type>        Set track 2 type (vocal/instrumental)\n")
+	fmt.Printf("Vocal Segments:\n")
+	fmt.Printf("  split <1|2>         Split vocal track into segments by silence\n")
+	fmt.Printf("  segments [1|2]      List available segments\n")
+	fmt.Printf("  place <track:seg> at <time> Place segment (e.g. '1:3 at 45.2')\n")
+	fmt.Printf("  shift <track:seg> <+/-time> Adjust segment timing (e.g. '1:3 +2.5')\n")
+	fmt.Printf("  toggle <track:seg>  Enable/disable segment (e.g. '1:3')\n")
+	fmt.Printf("  preview <track:seg> Preview individual segment (e.g. '1:3')\n")
+	fmt.Printf("  random <1|2>        Randomly place all segments from track\n")
 	fmt.Printf("Utility:\n")
 	fmt.Printf("  reset               Reset all adjustments to zero\n")
 	fmt.Printf("  status              Show current settings\n")
@@ -859,6 +974,395 @@ func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch 
 
 	args = append(args, inputPath)
 	return args
+}
+
+func (bs *BlendShell) handleSplitCommand(trackNum string) {
+	var id, inputPath string
+	var segments *[]VocalSegment
+	var segmentsDir string
+	
+	switch trackNum {
+	case "1":
+		id = bs.id1
+		inputPath = bs.inputPath1
+		segments = &bs.segments1
+		segmentsDir = bs.segmentsDir1
+	case "2":
+		id = bs.id2
+		inputPath = bs.inputPath2
+		segments = &bs.segments2
+		segmentsDir = bs.segmentsDir2
+	default:
+		fmt.Printf("Invalid track number: %s (use 1 or 2)\n", trackNum)
+		return
+	}
+	
+	// Only split vocal tracks
+	trackType := bs.type1
+	if trackNum == "2" {
+		trackType = bs.type2
+	}
+	if trackType != "V" {
+		fmt.Printf("Track %s is not vocal type. Switch to vocal first using 'type%s vocal'\n", trackNum, trackNum)
+		return
+	}
+	
+	fmt.Printf("Splitting track %s (%s) into vocal segments...\n", trackNum, id)
+	
+	if err := os.MkdirAll(segmentsDir, 0755); err != nil {
+		fmt.Printf("Error creating segments directory: %v\n", err)
+		return
+	}
+	
+	// Run silence detection
+	silenceCmd := exec.Command("ffmpeg", "-hide_banner", "-i", inputPath,
+		"-af", "silencedetect=noise=-35dB:d=0.5", "-f", "null", "-")
+	
+	silenceOutput, err := silenceCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error detecting silence: %v\n", err)
+		return
+	}
+	
+	// Extract timestamps
+	sedCmd := exec.Command("sed", "-n", "s/.*silence_end: \\([0-9.]*\\).*/\\1/p")
+	sedCmd.Stdin = strings.NewReader(string(silenceOutput))
+	sedOutput, err := sedCmd.Output()
+	if err != nil {
+		fmt.Printf("Error extracting timestamps: %v\n", err)
+		return
+	}
+	
+	timestamps := strings.TrimSpace(string(sedOutput))
+	timestamps = strings.ReplaceAll(timestamps, "\n", ",")
+	
+	if timestamps == "" {
+		fmt.Printf("No silence detected. Creating single segment.\n")
+		outputPath := fmt.Sprintf("%s/part_001.wav", segmentsDir)
+		copyCmd := exec.Command("cp", inputPath, outputPath)
+		if err := copyCmd.Run(); err != nil {
+			fmt.Printf("Error copying file: %v\n", err)
+			return
+		}
+		
+		duration, _ := getAudioDuration(inputPath)
+		*segments = []VocalSegment{{
+			Index: 1, StartTime: 0, Duration: duration,
+			Placement: 0, Active: false,
+		}}
+		fmt.Printf("Created 1 segment\n")
+		return
+	}
+	
+	// Split the file
+	outputPattern := fmt.Sprintf("%s/part_%%03d.wav", segmentsDir)
+	splitCmd := exec.Command("ffmpeg", "-hide_banner", "-y", "-i", inputPath,
+		"-c", "copy", "-f", "segment", "-segment_times", timestamps, outputPattern)
+	
+	err = splitCmd.Run()
+	if err != nil {
+		fmt.Printf("Error splitting file: %v\n", err)
+		return
+	}
+	
+	// Analyze created segments
+	bs.loadSegments(trackNum)
+	fmt.Printf("Successfully split track %s into %d segments\n", trackNum, len(*segments))
+}
+
+func (bs *BlendShell) loadSegments(trackNum string) {
+	var segments *[]VocalSegment
+	var segmentsDir string
+	
+	switch trackNum {
+	case "1":
+		segments = &bs.segments1
+		segmentsDir = bs.segmentsDir1
+	case "2":
+		segments = &bs.segments2
+		segmentsDir = bs.segmentsDir2
+	default:
+		return
+	}
+	
+	entries, err := os.ReadDir(segmentsDir)
+	if err != nil {
+		return
+	}
+	
+	*segments = []VocalSegment{}
+	for i, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "part_") && strings.HasSuffix(entry.Name(), ".wav") {
+			segmentPath := fmt.Sprintf("%s/%s", segmentsDir, entry.Name())
+			duration, err := getAudioDuration(segmentPath)
+			if err != nil {
+				continue
+			}
+			
+			*segments = append(*segments, VocalSegment{
+				Index: i + 1, StartTime: 0, Duration: duration,
+				Placement: 0, Active: false,
+			})
+		}
+	}
+}
+
+func (bs *BlendShell) handleSegmentsCommand(trackNum string) {
+	if trackNum == "" {
+		// Show both tracks
+		fmt.Printf("--- Segments ---\n")
+		if len(bs.segments1) > 0 {
+			fmt.Printf("Track 1 (%s): %d segments\n", bs.id1, len(bs.segments1))
+			for _, seg := range bs.segments1 {
+				status := "off"
+				if seg.Active { status = "on" }
+				fmt.Printf("  1:%d - %.1fs duration, placed at %.1fs [%s]\n", 
+					seg.Index, seg.Duration, seg.Placement, status)
+			}
+		} else {
+			fmt.Printf("Track 1 (%s): no segments (use 'split 1')\n", bs.id1)
+		}
+		
+		if len(bs.segments2) > 0 {
+			fmt.Printf("Track 2 (%s): %d segments\n", bs.id2, len(bs.segments2))
+			for _, seg := range bs.segments2 {
+				status := "off"
+				if seg.Active { status = "on" }
+				fmt.Printf("  2:%d - %.1fs duration, placed at %.1fs [%s]\n", 
+					seg.Index, seg.Duration, seg.Placement, status)
+			}
+		} else {
+			fmt.Printf("Track 2 (%s): no segments (use 'split 2')\n", bs.id2)
+		}
+		return
+	}
+	
+	// Show specific track
+	var segments []VocalSegment
+	var id string
+	
+	switch trackNum {
+	case "1":
+		segments = bs.segments1
+		id = bs.id1
+	case "2":
+		segments = bs.segments2
+		id = bs.id2
+	default:
+		fmt.Printf("Invalid track number: %s (use 1 or 2)\n", trackNum)
+		return
+	}
+	
+	if len(segments) == 0 {
+		fmt.Printf("Track %s (%s): no segments (use 'split %s')\n", trackNum, id, trackNum)
+		return
+	}
+	
+	fmt.Printf("Track %s (%s): %d segments\n", trackNum, id, len(segments))
+	for _, seg := range segments {
+		status := "off"
+		if seg.Active { status = "on" }
+		fmt.Printf("  %s:%d - %.1fs duration, placed at %.1fs [%s]\n", 
+			trackNum, seg.Index, seg.Duration, seg.Placement, status)
+	}
+}
+
+func (bs *BlendShell) parseSegmentRef(segRef string) (int, int, bool) {
+	parts := strings.Split(segRef, ":")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	
+	trackNum, err := strconv.Atoi(parts[0])
+	if err != nil || (trackNum != 1 && trackNum != 2) {
+		return 0, 0, false
+	}
+	
+	segNum, err := strconv.Atoi(parts[1])
+	if err != nil || segNum < 1 {
+		return 0, 0, false
+	}
+	
+	return trackNum, segNum, true
+}
+
+func (bs *BlendShell) handlePlaceCommand(segRef, timeStr string) {
+	trackNum, segNum, ok := bs.parseSegmentRef(segRef)
+	if !ok {
+		fmt.Printf("Invalid segment reference: %s (use format track:segment like 1:3)\n", segRef)
+		return
+	}
+	
+	placement, err := strconv.ParseFloat(timeStr, 64)
+	if err != nil {
+		fmt.Printf("Invalid time: %s\n", timeStr)
+		return
+	}
+	
+	var segments *[]VocalSegment
+	switch trackNum {
+	case 1:
+		segments = &bs.segments1
+	case 2:
+		segments = &bs.segments2
+	}
+	
+	if segNum > len(*segments) {
+		fmt.Printf("Segment %d not found for track %d\n", segNum, trackNum)
+		return
+	}
+	
+	(*segments)[segNum-1].Placement = placement
+	(*segments)[segNum-1].Active = true
+	fmt.Printf("Placed segment %s at %.1fs\n", segRef, placement)
+}
+
+func (bs *BlendShell) handleShiftCommand(segRef, shiftStr string) {
+	trackNum, segNum, ok := bs.parseSegmentRef(segRef)
+	if !ok {
+		fmt.Printf("Invalid segment reference: %s (use format track:segment like 1:3)\n", segRef)
+		return
+	}
+	
+	shift, err := strconv.ParseFloat(shiftStr, 64)
+	if err != nil {
+		fmt.Printf("Invalid shift amount: %s\n", shiftStr)
+		return
+	}
+	
+	var segments *[]VocalSegment
+	switch trackNum {
+	case 1:
+		segments = &bs.segments1
+	case 2:
+		segments = &bs.segments2
+	}
+	
+	if segNum > len(*segments) {
+		fmt.Printf("Segment %d not found for track %d\n", segNum, trackNum)
+		return
+	}
+	
+	(*segments)[segNum-1].Placement += shift
+	fmt.Printf("Shifted segment %s by %+.1fs to %.1fs\n", 
+		segRef, shift, (*segments)[segNum-1].Placement)
+}
+
+func (bs *BlendShell) handleToggleCommand(segRef string) {
+	trackNum, segNum, ok := bs.parseSegmentRef(segRef)
+	if !ok {
+		fmt.Printf("Invalid segment reference: %s (use format track:segment like 1:3)\n", segRef)
+		return
+	}
+	
+	var segments *[]VocalSegment
+	switch trackNum {
+	case 1:
+		segments = &bs.segments1
+	case 2:
+		segments = &bs.segments2
+	}
+	
+	if segNum > len(*segments) {
+		fmt.Printf("Segment %d not found for track %d\n", segNum, trackNum)
+		return
+	}
+	
+	(*segments)[segNum-1].Active = !(*segments)[segNum-1].Active
+	status := "disabled"
+	if (*segments)[segNum-1].Active {
+		status = "enabled"
+	}
+	fmt.Printf("Segment %s is now %s\n", segRef, status)
+}
+
+func (bs *BlendShell) handlePreviewCommand(segRef string) {
+	trackNum, segNum, ok := bs.parseSegmentRef(segRef)
+	if !ok {
+		fmt.Printf("Invalid segment reference: %s (use format track:segment like 1:3)\n", segRef)
+		return
+	}
+	
+	var segments []VocalSegment
+	var segmentsDir string
+	switch trackNum {
+	case 1:
+		segments = bs.segments1
+		segmentsDir = bs.segmentsDir1
+	case 2:
+		segments = bs.segments2
+		segmentsDir = bs.segmentsDir2
+	}
+	
+	if segNum > len(segments) {
+		fmt.Printf("Segment %d not found for track %d\n", segNum, trackNum)
+		return
+	}
+	
+	segment := segments[segNum-1]
+	segmentPath := fmt.Sprintf("%s/part_%03d.wav", segmentsDir, segment.Index)
+	
+	if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
+		fmt.Printf("Segment file not found: %s\n", segmentPath)
+		return
+	}
+	
+	fmt.Printf("Previewing segment %s (%.1fs duration)...\n", segRef, segment.Duration)
+	
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(segment.Duration*1000)*time.Millisecond)
+	defer cancel()
+	
+	playCmd := exec.CommandContext(ctx, "ffplay", "-autoexit", "-nodisp", "-loglevel", "quiet", segmentPath)
+	playCmd.Run()
+	
+	fmt.Printf("Preview completed.\n")
+}
+
+func (bs *BlendShell) handleRandomCommand(trackStr string) {
+	trackNum, err := strconv.Atoi(trackStr)
+	if err != nil || (trackNum != 1 && trackNum != 2) {
+		fmt.Printf("Invalid track number: %s (use 1 or 2)\n", trackStr)
+		return
+	}
+	
+	var segments *[]VocalSegment
+	var targetDuration float64
+	var id string
+	
+	switch trackNum {
+	case 1:
+		segments = &bs.segments1
+		targetDuration = bs.duration2
+		id = bs.id1
+	case 2:
+		segments = &bs.segments2 
+		targetDuration = bs.duration1
+		id = bs.id2
+	}
+	
+	if len(*segments) == 0 {
+		fmt.Printf("No segments found for track %d. Run 'split %d' first.\n", trackNum, trackNum)
+		return
+	}
+	
+	fmt.Printf("Randomly placing %d segments from track %d (%s) across %.1fs...\n", 
+		len(*segments), trackNum, id, targetDuration)
+	
+	// Generate random placements, ensuring no overlaps
+	rand.Seed(time.Now().UnixNano())
+	
+	for i := range *segments {
+		// Place randomly in first 80% of target track to avoid cutting off
+		maxPlacement := targetDuration * 0.8
+		placement := rand.Float64() * maxPlacement
+		
+		(*segments)[i].Placement = placement
+		(*segments)[i].Active = true
+		
+		fmt.Printf("  %d:%d placed at %.1fs\n", trackNum, (*segments)[i].Index, placement)
+	}
+	
+	fmt.Printf("Random placement completed for track %d\n", trackNum)
 }
 
 func detectTrackTypes(id1, id2 string) (string, string) {
