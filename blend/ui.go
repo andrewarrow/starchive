@@ -53,6 +53,10 @@ func (bs *Shell) Completer() readline.AutoCompleter {
 			readline.PcItem("1"),
 			readline.PcItem("2"),
 		),
+		readline.PcItem("gap-finder",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+		),
 		readline.PcItem("place"),
 		readline.PcItem("shift"),
 		readline.PcItem("toggle"),
@@ -142,6 +146,8 @@ func (bs *Shell) ShowHelp() {
 	fmt.Printf("Beat Detection:\n")
 	fmt.Printf("  beat-detect <1|2|both> Detect beat positions in tracks\n")
 	fmt.Printf("  beats [1|2]         Show detected beat positions\n")
+	fmt.Printf("Gap Analysis:\n")
+	fmt.Printf("  gap-finder <1|2>    Find vocal gaps (low energy periods) for placement\n")
 	fmt.Printf("Segment Placement:\n")
 	fmt.Printf("  place <track:seg> at <time> Place segment (e.g. '1:3 at 45.2')\n")
 	fmt.Printf("  shift <track:seg> <+/-time> Adjust segment timing (e.g. '1:3 +2.5')\n")
