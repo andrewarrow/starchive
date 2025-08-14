@@ -355,25 +355,18 @@ func (bs *Shell) handlePlayCommand(startFrom float64) {
 	// Calculate maximum available play duration for both tracks
 	remainingDuration1 := bs.Duration1 - startPosition1
 	remainingDuration2 := bs.Duration2 - startPosition2
-	playDuration := 10.0 // Default 10 seconds
-	
-	// Use the smaller of the two remaining durations, but cap at 10 seconds
 	maxAvailableDuration := remainingDuration1
 	if remainingDuration2 < maxAvailableDuration {
 		maxAvailableDuration = remainingDuration2
 	}
-	
-	if maxAvailableDuration < playDuration {
-		playDuration = maxAvailableDuration
-	}
 
-	fmt.Printf("Playing blend for %.1f seconds (press Ctrl+C to stop)...\n", playDuration)
+	fmt.Printf("Playing blend... Press any key to stop.\n")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(playDuration*1000)*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ffplayArgs1 := bs.buildFFplayArgs(bs.InputPath1, startPosition1, bs.Pitch1, bs.Tempo1, bs.Volume1, playDuration)
-	ffplayArgs2 := bs.buildFFplayArgs(bs.InputPath2, startPosition2, bs.Pitch2, bs.Tempo2, bs.Volume2, playDuration)
+	ffplayArgs1 := bs.buildFFplayArgs(bs.InputPath1, startPosition1, bs.Pitch1, bs.Tempo1, bs.Volume1, maxAvailableDuration)
+	ffplayArgs2 := bs.buildFFplayArgs(bs.InputPath2, startPosition2, bs.Pitch2, bs.Tempo2, bs.Volume2, maxAvailableDuration)
 
 	go func() {
 		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
@@ -385,8 +378,15 @@ func (bs *Shell) handlePlayCommand(startFrom float64) {
 		cmd2.Run()
 	}()
 
+	// Wait for any key press
+	go func() {
+		var input string
+		fmt.Scanf("%s", &input)
+		cancel()
+	}()
+
 	<-ctx.Done()
-	fmt.Printf("Playback completed.\n")
+	fmt.Printf("Playback stopped.\n")
 }
 
 // buildFFplayArgs constructs ffplay arguments with audio effects
@@ -429,6 +429,7 @@ func (bs *Shell) buildFFplayArgs(inputPath string, startPos float64, pitch int, 
 	args = append(args, inputPath)
 	return args
 }
+
 
 // handleInvertCommand intelligently matches tracks
 func (bs *Shell) handleInvertCommand() {
