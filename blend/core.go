@@ -62,6 +62,10 @@ func NewShell(id1, id2 string, db *util.Database) *Shell {
 	shell.Duration1, _ = audio.GetAudioDuration(shell.InputPath1)
 	shell.Duration2, _ = audio.GetAudioDuration(shell.InputPath2)
 
+	// Load existing segments if they exist
+	shell.loadSegments("1")
+	shell.loadSegments("2")
+
 	return shell
 }
 
@@ -101,6 +105,7 @@ func (bs *Shell) Run() {
 		return
 	}
 	defer rl.Close()
+	defer bs.cleanup()
 	
 	for {
 		input, err := rl.Readline()
@@ -153,6 +158,15 @@ func (bs *Shell) printCommands() {
 	fmt.Printf("  help                 Show this help\n")
 	fmt.Printf("  exit                 Exit blend shell\n")
 	fmt.Printf("\n")
+}
+
+// cleanup removes temporary files and performs other cleanup tasks
+func (bs *Shell) cleanup() {
+	// Clean up invert state files
+	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.ID1, bs.ID2)
+	os.Remove(stateFile)
+	
+	// Clean up any other temporary files or resources as needed
 }
 
 // ResetAdjustments resets all blend adjustments to default values

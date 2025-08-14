@@ -98,3 +98,57 @@ func HasInstrumentalFile(id string) bool {
 	_, err := os.Stat(GetInstrumentalFilePath(id))
 	return !os.IsNotExist(err)
 }
+
+// CalculateEffectiveBPM calculates the effective BPM after tempo adjustment
+func CalculateEffectiveBPM(originalBPM float64, tempoAdjustment float64) float64 {
+	multiplier := 1.0 + (tempoAdjustment / 100.0)
+	return originalBPM * multiplier
+}
+
+// CalculateEffectiveKey calculates the effective key after pitch adjustment
+func CalculateEffectiveKey(originalKey string, pitchAdjustment int) string {
+	if pitchAdjustment == 0 {
+		return originalKey
+	}
+	
+	// Key mapping for pitch calculations
+	keyMap := map[string]int{
+		"C major": 0, "C minor": 0,
+		"C# major": 1, "C# minor": 1, "Db major": 1, "Db minor": 1,
+		"D major": 2, "D minor": 2,
+		"D# major": 3, "D# minor": 3, "Eb major": 3, "Eb minor": 3,
+		"E major": 4, "E minor": 4,
+		"F major": 5, "F minor": 5,
+		"F# major": 6, "F# minor": 6, "Gb major": 6, "Gb minor": 6,
+		"G major": 7, "G minor": 7,
+		"G# major": 8, "G# minor": 8, "Ab major": 8, "Ab minor": 8,
+		"A major": 9, "A minor": 9,
+		"A# major": 10, "A# minor": 10, "Bb major": 10, "Bb minor": 10,
+		"B major": 11, "B minor": 11,
+	}
+	
+	reverseKeyMap := make(map[int]string)
+	isMinor := strings.Contains(originalKey, "minor")
+	
+	for key, value := range keyMap {
+		if (isMinor && strings.Contains(key, "minor")) || (!isMinor && strings.Contains(key, "major")) {
+			reverseKeyMap[value] = key
+		}
+	}
+	
+	originalValue, exists := keyMap[originalKey]
+	if !exists {
+		return originalKey // Return original if not found
+	}
+	
+	newValue := (originalValue + pitchAdjustment) % 12
+	if newValue < 0 {
+		newValue += 12
+	}
+	
+	if newKey, exists := reverseKeyMap[newValue]; exists {
+		return newKey
+	}
+	
+	return originalKey
+}

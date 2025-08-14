@@ -51,11 +51,38 @@ func handleLsCommand() {
 				continue
 			}
 			
-			// TODO: Re-implement parseJSONMetadata and cacheMetadata functions
-			fmt.Printf("%s\t<metadata parsing temporarily disabled>\n", id)
-			continue
+			// Parse JSON file if not in cache or cache is stale
+			filePath := filepath.Join("./data", id+".json")
+			metadata, err := util.ParseJSONMetadata(filePath)
+			if err != nil {
+				fmt.Printf("%s\t<error parsing file: %v>\n", id, err)
+				continue
+			}
 			
-			// This code is temporarily disabled
+			// Cache the metadata
+			if err := db.CacheMetadata(*metadata); err != nil {
+				fmt.Printf("Warning: failed to cache metadata for %s: %v\n", id, err)
+			}
+			
+			// Get the updated metadata
+			if updatedMetadata, found := db.GetCachedMetadata(id); found {
+				metadata = updatedMetadata
+			}
+			
+			vocalStatus := "N"
+			if metadata.VocalDone {
+				vocalStatus = "Y"
+			}
+			bmpInfo := ""
+			if metadata.BPM != nil && metadata.Key != nil {
+				bmpInfo = fmt.Sprintf("%.1f/%s", 
+					*metadata.BPM, *metadata.Key)
+			}
+			title := ""
+			if metadata.Title != nil {
+				title = *metadata.Title
+			}
+			fmt.Printf("%-15s %-60s %-1s %-10s\n", metadata.ID, util.TruncateString(title, 60), vocalStatus, bmpInfo)
 		}
 	}
 }
@@ -125,8 +152,11 @@ func handleVocalCommand() {
 	}
 	defer db.Close()
 
-	// TODO: markVocalDone function needs to be implemented
-	fmt.Printf("Vocal processing complete for %s (database update skipped)\n", id)
+	if err := db.MarkVocalDone(id); err != nil {
+		fmt.Printf("Warning: Could not mark vocal as done in database: %v\n", err)
+	} else {
+		fmt.Printf("Marked %s as vocal done in database\n", id)
+	}
 }
 
 func handleBpmCommand() {
@@ -172,8 +202,11 @@ func handleBpmCommand() {
 	bpm := bpmData["bpm"].(float64)
 	key := bpmData["key"].(string)
 
-	// TODO: storeBPMData function needs to be implemented  
-	fmt.Printf("\nBPM: %.1f, Key: %s (database storage skipped)\n", bpm, key)
+	if err := db.StoreBPMData(id, bpm, key); err != nil {
+		fmt.Printf("Warning: Could not store BPM data in database: %v\n", err)
+	} else {
+		fmt.Printf("\nBPM data stored in database for %s\n", id)
+	}
 }
 
 func handleSyncCommand() {

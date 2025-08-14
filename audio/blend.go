@@ -1,8 +1,6 @@
 package audio
 
-import (
-	"strings"
-)
+import ()
 
 // Key and BPM calculation utilities
 var keyMap = map[string]int{
@@ -32,43 +30,6 @@ func CalculateKeyDifference(key1, key2 string) int {
 	return diff
 }
 
-// CalculateEffectiveBPM calculates the effective BPM after tempo adjustment
-func CalculateEffectiveBPM(originalBPM float64, tempoAdjustment float64) float64 {
-	multiplier := 1.0 + (tempoAdjustment / 100.0)
-	return originalBPM * multiplier
-}
-
-// CalculateEffectiveKey calculates the effective key after pitch adjustment
-func CalculateEffectiveKey(originalKey string, pitchAdjustment int) string {
-	if pitchAdjustment == 0 {
-		return originalKey
-	}
-	
-	reverseKeyMap := make(map[int]string)
-	isMinor := strings.Contains(originalKey, "minor")
-	
-	for key, value := range keyMap {
-		if (isMinor && strings.Contains(key, "minor")) || (!isMinor && strings.Contains(key, "major")) {
-			reverseKeyMap[value] = key
-		}
-	}
-	
-	originalValue, exists := keyMap[originalKey]
-	if !exists {
-		return originalKey
-	}
-	
-	newValue := (originalValue + pitchAdjustment) % 12
-	if newValue < 0 {
-		newValue += 12
-	}
-	
-	if newKey, exists := reverseKeyMap[newValue]; exists {
-		return newKey
-	}
-	
-	return originalKey
-}
 
 // DetectTrackTypes determines optimal track types (vocal/instrumental) for blending
 func DetectTrackTypes(id1, id2 string) (string, string) {

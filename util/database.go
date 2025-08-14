@@ -233,3 +233,61 @@ func (d *Database) FindMetadataByPattern(pattern string) ([]VideoMetadata, error
 	
 	return results, nil
 }
+
+// ParseJSONMetadata parses a JSON metadata file and returns VideoMetadata
+func ParseJSONMetadata(filePath string) (*VideoMetadata, error) {
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(fileContent, &jsonData); err != nil {
+		return nil, err
+	}
+	
+	id := strings.TrimSuffix(filepath.Base(filePath), ".json")
+	title := "<no title>"
+	if t, ok := jsonData["title"].(string); ok {
+		title = t
+	}
+	
+	// Get file modification time
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	titlePtr := &title
+	return &VideoMetadata{
+		ID:           id,
+		Title:        titlePtr,
+		LastModified: fileInfo.ModTime(),
+		VocalDone:    false,
+	}, nil
+}
+
+// CacheMetadata saves parsed metadata to the database
+func (d *Database) CacheMetadata(metadata VideoMetadata) error {
+	return d.SaveMetadata(&metadata)
+}
+
+// MarkVocalDone marks vocal processing as complete for a track
+func (d *Database) MarkVocalDone(id string) error {
+	_, err := d.db.Exec("UPDATE video_metadata SET vocal_done = 1 WHERE id = ?", id)
+	return err
+}
+
+// StoreBPMData stores BPM and key data for a track
+func (d *Database) StoreBPMData(id string, bmp float64, key string) error {
+	// First ensure record exists
+	_, err := d.db.Exec(`INSERT OR IGNORE INTO video_metadata (id, title, last_modified, vocal_done) VALUES (?, '', 0, 0)`, id)
+	if err != nil {
+		return err
+	}
+	
+	// Then update with BPM data
+	_, err = d.db.Exec(`UPDATE video_metadata SET bpm = ?, key = ? WHERE id = ?`,
+		bmp, key, id)
+	return err
+}
