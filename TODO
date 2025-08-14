@@ -1,0 +1,32 @@
+Vocal Segment Intelligence:
+  - analyze-segments - AI-powered segment categorization (verse, chorus, bridge, ad-lib)
+  - segment-energy <1|2> - Analyze energy levels of segments to place high-energy vocals over
+  low-energy instrumentals
+  - vocal-density - Detect vocal density and avoid overlapping busy sections
+
+  Advanced Placement:
+  - smart-random <1|2> - Intelligent random placement that avoids placing vocals during instrumental
+   solos/breaks
+  - call-response <1|2> - Place segments in the gaps between the other track's vocal phrases
+  - echo-place <track:segment> - Create echo effects by placing the same segment multiple times with
+   fading volume
+  - harmony-stack <track:segment> - Layer the same segment with pitch shifts to create harmonies
+
+  Groove-Based Features:
+  - quantize <track:segment> - Snap segment placement to beat boundaries
+  - groove-match - Analyze rhythmic patterns and suggest optimal placement points
+  - beat-sync <1|2> - Auto-align segment starts to strong beats in the target track
+
+  Creative Mixing:
+  - crossfade <track:segment> <duration> - Add crossfades to segment edges
+  - vocal-chop <track:segment> <pattern> - Cut segments into rhythmic patterns (1/4, 1/8, etc.)
+  - reverse <track:segment> - Reverse specific segments for creative effects
+  - stutter <track:segment> <repeats> - Create stutter/repeat effects
+
+  Batch Operations:
+  - template save <name> - Save current segment placement as a template
+  - template load <name> - Load a placement template
+  - batch-shift <1|2> <amount> - Shift all segments of a track by the same amount
+  - segment-chain <1|2> - Create continuous vocal chains by automatically placing segments
+  end-to-end
+
