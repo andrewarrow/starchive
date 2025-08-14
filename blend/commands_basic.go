@@ -2,6 +2,7 @@ package blend
 
 import (
 	"fmt"
+	"strconv"
 )
 
 // HandleBasicCommand processes basic shell commands (help, status, reset, exit)
@@ -24,6 +25,14 @@ func (bs *Shell) HandleBasicCommand(cmd string, args []string) bool {
 		
 	case "conflict-detect":
 		bs.handleConflictDetectCommand()
+		
+	case "foundation":
+		if len(args) > 0 {
+			bs.handleFoundationCommand(args[0])
+		} else {
+			fmt.Printf("Usage: foundation <N>  (runs steps 1-N from PLAN.md)\n")
+			fmt.Printf("Available steps: 1=analyze-segments, 2=beat-detect, 3=auto-match, 4=conflict-detect\n")
+		}
 		
 	default:
 		return false // Command not handled by this module
@@ -171,4 +180,52 @@ func min(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+// handleFoundationCommand runs steps 1-N from the PLAN.md automatically
+func (bs *Shell) handleFoundationCommand(stepArg string) {
+	maxStep, err := strconv.Atoi(stepArg)
+	if err != nil {
+		fmt.Printf("Invalid step number: %s (must be 1-4)\n", stepArg)
+		return
+	}
+	
+	if maxStep < 1 || maxStep > 4 {
+		fmt.Printf("Step number must be 1-4, got: %d\n", maxStep)
+		return
+	}
+	
+	fmt.Printf("🚀 Running foundation steps 1-%d...\n\n", maxStep)
+	
+	// Step 1: analyze-segments
+	if maxStep >= 1 {
+		fmt.Printf("Step 1: Analyzing segments...\n")
+		bs.HandleAudioCommand("analyze-segments", []string{"1"})
+		fmt.Printf("\n")
+	}
+	
+	// Step 2: beat-detect
+	if maxStep >= 2 {
+		fmt.Printf("Step 2: Detecting beats...\n")
+		bs.HandleAudioCommand("beat-detect", []string{"both"})
+		fmt.Printf("\n")
+	}
+	
+	// Step 3: auto-match
+	if maxStep >= 3 {
+		fmt.Printf("Step 3: Auto-matching tracks...\n")
+		bs.HandleMatchingCommand("auto-match", []string{})
+		fmt.Printf("\n")
+	}
+	
+	// Step 4: conflict-detect
+	if maxStep >= 4 {
+		fmt.Printf("Step 4: Checking for conflicts...\n")
+		bs.handleConflictDetectCommand()
+		fmt.Printf("\n")
+	}
+	
+	fmt.Printf("✅ Foundation steps 1-%d complete!\n", maxStep)
+	fmt.Printf("Current status:\n")
+	bs.ShowStatus()
 }
