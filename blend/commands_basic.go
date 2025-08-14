@@ -31,7 +31,7 @@ func (bs *Shell) HandleBasicCommand(cmd string, args []string) bool {
 			bs.handleFoundationCommand(args[0])
 		} else {
 			fmt.Printf("Usage: foundation <N>  (runs steps 1-N from PLAN.md)\n")
-			fmt.Printf("Available steps: 1=analyze-segments, 2=beat-detect, 3=auto-match, 4=conflict-detect\n")
+			fmt.Printf("Available steps: 1=analyze-segments, 2=beat-detect, 3=auto-match, 4=conflict-detect, 5=segment-trim\n")
 		}
 		
 	default:
@@ -186,12 +186,12 @@ func min(a, b float64) float64 {
 func (bs *Shell) handleFoundationCommand(stepArg string) {
 	maxStep, err := strconv.Atoi(stepArg)
 	if err != nil {
-		fmt.Printf("Invalid step number: %s (must be 1-4)\n", stepArg)
+		fmt.Printf("Invalid step number: %s (must be 1-5)\n", stepArg)
 		return
 	}
 	
-	if maxStep < 1 || maxStep > 4 {
-		fmt.Printf("Step number must be 1-4, got: %d\n", maxStep)
+	if maxStep < 1 || maxStep > 5 {
+		fmt.Printf("Step number must be 1-5, got: %d\n", maxStep)
 		return
 	}
 	
@@ -222,6 +222,13 @@ func (bs *Shell) handleFoundationCommand(stepArg string) {
 	if maxStep >= 4 {
 		fmt.Printf("Step 4: Checking for conflicts...\n")
 		bs.handleConflictDetectCommand()
+		fmt.Printf("\n")
+	}
+	
+	// Step 5: segment-trim
+	if maxStep >= 5 {
+		fmt.Printf("Step 5: Auto-trimming silence from segments...\n")
+		bs.HandleSegmentManipulationCommand("segment-trim", []string{"1"})
 		fmt.Printf("\n")
 	}
 	
