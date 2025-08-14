@@ -37,7 +37,11 @@ func (bs *Shell) HandleCommand(input string) bool {
 		return true
 	}
 	
-	if bs.HandleSegmentCommand(cmd, args) {
+	if bs.HandleSegmentCreationCommand(cmd, args) {
+		return true
+	}
+	
+	if bs.HandleSegmentManipulationCommand(cmd, args) {
 		return true
 	}
 	
