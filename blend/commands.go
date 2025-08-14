@@ -1,7 +1,10 @@
 package blend
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -322,14 +325,197 @@ func (bs *Shell) handleTypeCommand(track, trackType string) {
 
 // handlePlayCommand plays the blend
 func (bs *Shell) handlePlayCommand(startFrom float64) {
-	fmt.Printf("Play functionality not yet implemented in new package structure\n")
-	fmt.Printf("TODO: Implement playback in blend package\n")
+	var startPosition1, startPosition2 float64
+	
+	if startFrom >= 0 {
+		// Use specified start position
+		startPosition1 = startFrom
+		startPosition2 = startFrom
+	} else {
+		// Use middle position with window offsets
+		startPosition1 = (bs.Duration1 / 2) + bs.Window1
+		startPosition2 = (bs.Duration2 / 2) + bs.Window2
+	}
+	
+	// Ensure valid start positions
+	if startPosition1 < 0 {
+		startPosition1 = 0
+	}
+	if startPosition2 < 0 {
+		startPosition2 = 0
+	}
+	
+	if startPosition1 >= bs.Duration1 {
+		startPosition1 = bs.Duration1 - 1
+	}
+	if startPosition2 >= bs.Duration2 {
+		startPosition2 = bs.Duration2 - 1
+	}
+
+	// Calculate maximum available play duration for both tracks
+	remainingDuration1 := bs.Duration1 - startPosition1
+	remainingDuration2 := bs.Duration2 - startPosition2
+	playDuration := 10.0 // Default 10 seconds
+	
+	// Use the smaller of the two remaining durations, but cap at 10 seconds
+	maxAvailableDuration := remainingDuration1
+	if remainingDuration2 < maxAvailableDuration {
+		maxAvailableDuration = remainingDuration2
+	}
+	
+	if maxAvailableDuration < playDuration {
+		playDuration = maxAvailableDuration
+	}
+
+	fmt.Printf("Playing blend for %.1f seconds (press Ctrl+C to stop)...\n", playDuration)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(playDuration*1000)*time.Millisecond)
+	defer cancel()
+
+	ffplayArgs1 := bs.buildFFplayArgs(bs.InputPath1, startPosition1, bs.Pitch1, bs.Tempo1, bs.Volume1, playDuration)
+	ffplayArgs2 := bs.buildFFplayArgs(bs.InputPath2, startPosition2, bs.Pitch2, bs.Tempo2, bs.Volume2, playDuration)
+
+	go func() {
+		cmd1 := exec.CommandContext(ctx, "ffplay", ffplayArgs1...)
+		cmd1.Run()
+	}()
+
+	go func() {
+		cmd2 := exec.CommandContext(ctx, "ffplay", ffplayArgs2...)
+		cmd2.Run()
+	}()
+
+	<-ctx.Done()
+	fmt.Printf("Playback completed.\n")
+}
+
+// buildFFplayArgs constructs ffplay arguments with audio effects
+func (bs *Shell) buildFFplayArgs(inputPath string, startPos float64, pitch int, tempo float64, volume float64, playDuration float64) []string {
+	args := []string{
+		"-ss", fmt.Sprintf("%.1f", startPos),
+		"-t", fmt.Sprintf("%.1f", playDuration),
+		"-autoexit",
+		"-nodisp",
+		"-loglevel", "quiet",
+	}
+
+	if pitch != 0 || tempo != 0 || volume != 100 {
+		var filters []string
+		
+		if tempo != 0 {
+			tempoMultiplier := 1.0 + (tempo / 100.0)
+			if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
+				filters = append(filters, fmt.Sprintf("atempo=%.6f", tempoMultiplier))
+			}
+		}
+		
+		if pitch != 0 {
+			pitchSemitones := float64(pitch)
+			filters = append(filters, fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f", 
+				math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0)))
+		}
+		
+		if volume != 100 {
+			volumeMultiplier := volume / 100.0
+			filters = append(filters, fmt.Sprintf("volume=%.6f", volumeMultiplier))
+		}
+		
+		if len(filters) > 0 {
+			filter := strings.Join(filters, ",")
+			args = append(args, "-af", filter)
+		}
+	}
+
+	args = append(args, inputPath)
+	return args
 }
 
 // handleInvertCommand intelligently matches tracks
 func (bs *Shell) handleInvertCommand() {
-	fmt.Printf("Invert functionality not yet implemented in new package structure\n")
-	fmt.Printf("TODO: Implement intelligent matching in blend package\n")
+	fmt.Printf("Inverting current match state...\n")
+	
+	// Save current state to determine what was matched
+	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.ID1, bs.ID2)
+	
+	// Check if we have a previous state to invert from
+	if bs.loadInvertState(stateFile) {
+		// We have previous state, so invert it
+		bs.applyInvertedState()
+	} else {
+		// No previous state, save current and apply default invert
+		bs.saveInvertState(stateFile)
+		bs.ResetAdjustments()
+		// Default: match bpm2to1 and key2to1
+		bs.handleMatchCommand("bpm2to1")
+		bs.handleMatchCommand("key2to1")
+	}
+}
+
+// saveInvertState saves current match state for inversion
+func (bs *Shell) saveInvertState(stateFile string) {
+	// Determine current match state based on adjustments
+	var bmpMatch, keyMatch string
+	
+	if bs.Tempo1 != 0 && bs.Tempo2 == 0 {
+		bmpMatch = "bpm1to2"
+	} else if bs.Tempo2 != 0 && bs.Tempo1 == 0 {
+		bmpMatch = "bpm2to1"
+	} else {
+		bmpMatch = "none"
+	}
+	
+	if bs.Pitch1 != 0 && bs.Pitch2 == 0 {
+		keyMatch = "key1to2"
+	} else if bs.Pitch2 != 0 && bs.Pitch1 == 0 {
+		keyMatch = "key2to1"
+	} else {
+		keyMatch = "none"
+	}
+	
+	content := fmt.Sprintf("%s,%s", bmpMatch, keyMatch)
+	ioutil.WriteFile(stateFile, []byte(content), 0644)
+}
+
+// loadInvertState loads previous match state
+func (bs *Shell) loadInvertState(stateFile string) bool {
+	data, err := ioutil.ReadFile(stateFile)
+	if err != nil {
+		return false
+	}
+	
+	parts := strings.Split(string(data), ",")
+	if len(parts) != 2 {
+		return false
+	}
+	
+	bs.PreviousBPMMatch = parts[0]
+	bs.PreviousKeyMatch = parts[1]
+	return true
+}
+
+// applyInvertedState applies the inverted state
+func (bs *Shell) applyInvertedState() {
+	bs.ResetAdjustments()
+	
+	// Invert BPM match
+	switch bs.PreviousBPMMatch {
+	case "bpm1to2":
+		bs.handleMatchCommand("bpm2to1")
+	case "bpm2to1":
+		bs.handleMatchCommand("bpm1to2")
+	}
+	
+	// Invert key match
+	switch bs.PreviousKeyMatch {
+	case "key1to2":
+		bs.handleMatchCommand("key2to1")
+	case "key2to1":
+		bs.handleMatchCommand("key1to2")
+	}
+	
+	// Clear the state file so next invert toggles back
+	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.ID1, bs.ID2)
+	os.Remove(stateFile)
 }
 
 // handleSplitCommand splits a track into vocal segments
@@ -679,9 +865,55 @@ func (bs *Shell) parseSegmentRef(segRef string) (int, int, bool) {
 }
 
 // handlePreviewCommand previews a specific segment
-func (bs *Shell) handlePreviewCommand(segmentRef string) {
-	fmt.Printf("Preview functionality not yet implemented in new package structure\n")
-	fmt.Printf("TODO: Implement segment preview for %s\n", segmentRef)
+func (bs *Shell) handlePreviewCommand(segRef string) {
+	trackNum, segNum, ok := bs.parseSegmentRef(segRef)
+	if !ok {
+		fmt.Printf("Invalid segment reference: %s (use format track:segment like 1:3)\n", segRef)
+		return
+	}
+	
+	var segments []VocalSegment
+	var segmentsDir string
+	switch trackNum {
+	case 1:
+		segments = bs.Segments1
+		segmentsDir = bs.SegmentsDir1
+	case 2:
+		segments = bs.Segments2
+		segmentsDir = bs.SegmentsDir2
+	default:
+		fmt.Printf("Invalid track number: %d\n", trackNum)
+		return
+	}
+	
+	if len(segments) == 0 {
+		fmt.Printf("No segments found for track %d. Run 'split %d' first.\n", trackNum, trackNum)
+		return
+	}
+	
+	if segNum < 1 || segNum > len(segments) {
+		fmt.Printf("Segment %d not found for track %d (has %d segments)\n", segNum, trackNum, len(segments))
+		return
+	}
+	
+	segment := segments[segNum-1]
+	segmentPath := fmt.Sprintf("%s/part_%03d.wav", segmentsDir, segment.Index)
+	
+	if _, err := os.Stat(segmentPath); os.IsNotExist(err) {
+		fmt.Printf("Segment file not found: %s\n", segmentPath)
+		return
+	}
+	
+	fmt.Printf("Previewing segment %s (%.1fs duration)...\n", segRef, segment.Duration)
+	fmt.Println("Press Ctrl+C to stop...")
+	
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(segment.Duration*1000)*time.Millisecond)
+	defer cancel()
+	
+	playCmd := exec.CommandContext(ctx, "ffplay", "-autoexit", "-nodisp", "-loglevel", "quiet", segmentPath)
+	playCmd.Run()
+	
+	fmt.Printf("Preview completed.\n")
 }
 
 // loadSegments loads and analyzes segment files for a track
