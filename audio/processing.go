@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -168,29 +169,34 @@ func HandlePlayCommand(args []string) {
 		os.Exit(1)
 	}
 
-	start := duration / 2
-	fmt.Printf("Playing %s from %.1fs (middle). Press any key to stop...\n", inputPath, start)
+	startPosition := duration / 2
+	
+	trackDesc := "main track"
+	switch audioType {
+	case "I", "instrumental", "instrumentals":
+		trackDesc = "instrumental track"
+	case "V", "vocal", "vocals":
+		trackDesc = "vocal track"
+	}
+	
+	fmt.Printf("Playing %s (%s) from position %.1fs (middle of %.1fs total)\n", id, trackDesc, startPosition, duration)
+	fmt.Println("Press any key to stop playback...")
 
-	ffplayCmd := exec.Command("ffplay", "-ss", fmt.Sprintf("%.1f", start),
-		"-autoexit", "-nodisp", "-loglevel", "quiet", inputPath)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
-		ffplayCmd.Run()
+		cmd := exec.CommandContext(ctx, "ffplay", 
+			"-ss", fmt.Sprintf("%.1f", startPosition),
+			"-autoexit",
+			"-nodisp",
+			"-loglevel", "quiet",
+			inputPath)
+		
+		cmd.Run()
 	}()
 
 	WaitForKeyPress()
-	
-	if ffplayCmd.Process != nil {
-		ffplayCmd.Process.Kill()
-	}
-	
-	fmt.Println("\nPlayback stopped.")
-
-	WaitForKeyPress()
-	
-	if ffplayCmd.Process != nil {
-		ffplayCmd.Process.Kill()
-	}
-	
+	cancel()
 	fmt.Println("\nPlayback stopped.")
 }
