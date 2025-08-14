@@ -1,9 +1,8 @@
-package main
+package audio
 
 import (
 	"strings"
 )
-
 
 // Key and BPM calculation utilities
 var keyMap = map[string]int{
@@ -14,7 +13,8 @@ var keyMap = map[string]int{
 	"Eb minor": 3, "Bb minor": 10, "F minor": 5, "C minor": 0, "G minor": 7, "D minor": 2,
 }
 
-func calculateKeyDifference(key1, key2 string) int {
+// CalculateKeyDifference calculates the semitone difference between two keys
+func CalculateKeyDifference(key1, key2 string) int {
 	val1, exists1 := keyMap[key1]
 	val2, exists2 := keyMap[key2]
 	
@@ -32,12 +32,14 @@ func calculateKeyDifference(key1, key2 string) int {
 	return diff
 }
 
-func calculateEffectiveBPM(originalBPM float64, tempoAdjustment float64) float64 {
+// CalculateEffectiveBPM calculates the effective BPM after tempo adjustment
+func CalculateEffectiveBPM(originalBPM float64, tempoAdjustment float64) float64 {
 	multiplier := 1.0 + (tempoAdjustment / 100.0)
 	return originalBPM * multiplier
 }
 
-func calculateEffectiveKey(originalKey string, pitchAdjustment int) string {
+// CalculateEffectiveKey calculates the effective key after pitch adjustment
+func CalculateEffectiveKey(originalKey string, pitchAdjustment int) string {
 	if pitchAdjustment == 0 {
 		return originalKey
 	}
@@ -68,32 +70,12 @@ func calculateEffectiveKey(originalKey string, pitchAdjustment int) string {
 	return originalKey
 }
 
-// Utility functions
-func clamp(value, min, max int) int {
-	if value < min {
-		return min
-	}
-	if value > max {
-		return max
-	}
-	return value
-}
-
-func clampFloat(value, min, max float64) float64 {
-	if value < min {
-		return min
-	}
-	if value > max {
-		return max
-	}
-	return value
-}
-
-func detectTrackTypes(id1, id2 string) (string, string) {
-	id1HasVocal := hasVocalFile(id1)
-	id1HasInstrumental := hasInstrumentalFile(id1)
-	id2HasVocal := hasVocalFile(id2)
-	id2HasInstrumental := hasInstrumentalFile(id2)
+// DetectTrackTypes determines optimal track types (vocal/instrumental) for blending
+func DetectTrackTypes(id1, id2 string) (string, string) {
+	id1HasVocal := HasVocalFile(id1)
+	id1HasInstrumental := HasInstrumentalFile(id1)
+	id2HasVocal := HasVocalFile(id2)
+	id2HasInstrumental := HasInstrumentalFile(id2)
 
 	var type1, type2 string
 
