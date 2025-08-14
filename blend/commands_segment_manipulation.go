@@ -48,6 +48,13 @@ func (bs *Shell) HandleSegmentManipulationCommand(cmd string, args []string) boo
 			fmt.Printf("Usage: segment-trim <1|2|all>\n")
 		}
 		
+	case "smart-random":
+		if len(args) > 0 {
+			bs.handleSmartRandomCommand(args[0])
+		} else {
+			fmt.Printf("Usage: smart-random <1|2>\n")
+		}
+		
 	default:
 		return false // Command not handled by this module
 	}
@@ -564,3 +571,158 @@ func (bs *Shell) estimateSilenceAtEnd(filePath string, maxTrim float64) float64 
 	
 	return 0.0
 }
+
+// handleSmartRandomCommand intelligently places segments with beat alignment and collision avoidance
+func (bs *Shell) handleSmartRandomCommand(trackNum string) {
+	var segments *[]VocalSegment
+	var beats []float64
+	var targetDuration float64
+	var otherSegments *[]VocalSegment
+	var id string
+	
+	switch trackNum {
+	case "1":
+		segments = &bs.Segments1
+		beats = bs.Beats2  // Align to beats of target track (track 2)
+		targetDuration = bs.Duration2
+		otherSegments = &bs.Segments2  // Check for collisions with track 2
+		id = bs.ID1
+	case "2":
+		segments = &bs.Segments2
+		beats = bs.Beats1  // Align to beats of target track (track 1)
+		targetDuration = bs.Duration1
+		otherSegments = &bs.Segments1  // Check for collisions with track 1
+		id = bs.ID2
+	default:
+		fmt.Printf("Invalid track number: %s (use 1 or 2)\n", trackNum)
+		return
+	}
+	
+	if len(*segments) == 0 {
+		fmt.Printf("No segments found for track %s. Run 'split %s' first.\n", trackNum, trackNum)
+		return
+	}
+	
+	if len(beats) == 0 {
+		fmt.Printf("No beats detected for target track. Run 'beat-detect' first.\n")
+		return
+	}
+	
+	fmt.Printf("Smart-placing %d segments from track %s (%s) with beat alignment and collision avoidance...\n", 
+		len(*segments), trackNum, id)
+	
+	// Reset all segments to inactive first
+	for i := range *segments {
+		(*segments)[i].Active = false
+		(*segments)[i].Placement = 0
+	}
+	
+	// Filter beats to usable range (first 80% of track to avoid cutoffs)
+	maxTime := targetDuration * 0.8
+	usableBeats := make([]float64, 0)
+	for _, beat := range beats {
+		if beat <= maxTime {
+			usableBeats = append(usableBeats, beat)
+		}
+	}
+	
+	if len(usableBeats) == 0 {
+		fmt.Printf("No usable beats found in target time range\n")
+		return
+	}
+	
+	fmt.Printf("Found %d usable beats in %.1fs timeframe\n", len(usableBeats), maxTime)
+	
+	// Smart placement algorithm
+	placedCount := 0
+	maxAttempts := len(*segments) * 10 // Allow multiple attempts per segment
+	
+	// Seed random generator
+	rand.Seed(time.Now().UnixNano())
+	
+	// Try to place each segment
+	for i := range *segments {
+		segment := &(*segments)[i]
+		placed := false
+		attempts := 0
+		
+		// Try to find a good placement for this segment
+		for attempts < maxAttempts && !placed {
+			// Pick a random beat position
+			beatIdx := rand.Intn(len(usableBeats))
+			candidateTime := usableBeats[beatIdx]
+			
+			// Check if this placement would cause conflicts
+			if bs.wouldCauseConflict(segment, candidateTime, segments, otherSegments) {
+				attempts++
+				continue
+			}
+			
+			// Good placement found!
+			segment.Placement = candidateTime
+			segment.Active = true
+			placed = true
+			placedCount++
+			
+			fmt.Printf("  %s:%d placed at beat %.1fs (beat %d/%d)\n", 
+				trackNum, segment.Index, candidateTime, beatIdx+1, len(usableBeats))
+		}
+		
+		if !placed {
+			fmt.Printf("  %s:%d could not be placed without conflicts (tried %d positions)\n", 
+				trackNum, segment.Index, attempts)
+		}
+	}
+	
+	fmt.Printf("Smart-random placement complete: %d/%d segments placed successfully\n", 
+		placedCount, len(*segments))
+	
+	// Show collision summary
+	if placedCount < len(*segments) {
+		fmt.Printf("💡 Tip: Use 'gap-finder' to find better placement opportunities\n")
+	}
+}
+
+// wouldCauseConflict checks if placing a segment at a given time would cause conflicts
+func (bs *Shell) wouldCauseConflict(segment *VocalSegment, placementTime float64, 
+	sameTrackSegments, otherTrackSegments *[]VocalSegment) bool {
+	
+	segmentStart := placementTime
+	segmentEnd := placementTime + segment.Duration
+	
+	// Check conflicts with other segments on the same track
+	for _, otherSeg := range *sameTrackSegments {
+		if !otherSeg.Active || otherSeg.Index == segment.Index {
+			continue
+		}
+		
+		otherStart := otherSeg.Placement
+		otherEnd := otherSeg.Placement + otherSeg.Duration
+		
+		// Check for overlap
+		if !(segmentEnd <= otherStart || segmentStart >= otherEnd) {
+			return true // Conflict detected
+		}
+	}
+	
+	// Check conflicts with segments on the other track (if both are vocal tracks)
+	if bs.Type1 == "V" && bs.Type2 == "V" {
+		for _, otherSeg := range *otherTrackSegments {
+			if !otherSeg.Active {
+				continue
+			}
+			
+			otherStart := otherSeg.Placement
+			otherEnd := otherSeg.Placement + otherSeg.Duration
+			
+			// Check for overlap (more strict for vocal-vocal conflicts)
+			minGap := 0.5 // Require at least 0.5s gap between vocals
+			if !(segmentEnd + minGap <= otherStart || segmentStart >= otherEnd + minGap) {
+				return true // Vocal conflict detected
+			}
+		}
+	}
+	
+	return false // No conflicts
+}
+
