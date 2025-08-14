@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	
+	"starchive/audio"
 )
 
 func handleSplitCommand() {
@@ -128,14 +130,14 @@ func handleDemoCommand() {
 	id := args[0]
 	audioType := args[1]
 
-	inputPath := getAudioFilename(id, audioType)
+	inputPath := audio.GetAudioFilename(id, audioType)
 
 	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
 		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
 		os.Exit(1)
 	}
 
-	duration, err := getAudioDuration(inputPath)
+	duration, err := audio.GetAudioDuration(inputPath)
 	if err != nil {
 		fmt.Printf("Error getting audio duration: %v\n", err)
 		os.Exit(1)
