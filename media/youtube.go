@@ -8,159 +8,174 @@ import (
 	"time"
 )
 
-// IsYouTubeID checks if input string is a valid YouTube video ID
 func IsYouTubeID(input string) bool {
 	return len(input) == 11 && !strings.Contains(input, ".")
 }
 
-// DownloadVideo downloads a YouTube video by ID
 func DownloadVideo(youtubeID string) (string, error) {
+
 	mFile := fmt.Sprintf("./data/%s.mp4", youtubeID)
 
 	if _, err := os.Stat(mFile); err == nil {
 		fmt.Printf("Video %s.mp4 already exists, skipping\n", youtubeID)
-		return mFile, nil
+		return youtubeID, nil
 	}
+
+	DownloadSubtitles(youtubeID)
+	DownloadThumbnail(youtubeID)
+	DownloadJSON(youtubeID)
 
 	fmt.Printf("Downloading video %s...\n", youtubeID)
 
-	cmd := exec.Command("yt-dlp", 
+	cmd := exec.Command("yt-dlp",
 		"--cookies", "./cookies.txt",
-		"--format", "best[height<=720]",
-		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
-		fmt.Sprintf("https://www.youtube.com/watch?v=%s", youtubeID))
+		"-o", "./data/%(id)s.%(ext)s",
+		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
+		"--merge-output-format", "mp4",
+		"https://www.youtube.com/watch?v="+youtubeID)
 
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("failed to download video: %v", err)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("error downloading and converting YouTube video: %v", err)
 	}
 
-	fmt.Printf("Video downloaded: %s\n", mFile)
-	return mFile, nil
+	if err := EnsureWav(youtubeID); err != nil {
+		fmt.Printf("Warning: failed to create WAV: %v\n", err)
+	}
+
+	return youtubeID, nil
 }
 
-// DownloadVideoComponents downloads various components of a YouTube video
-func DownloadVideoComponents(youtubeID string, downloadVideo bool) error {
-	fmt.Printf("Processing YouTube ID: %s\n", youtubeID)
-
-	// Create data directory if it doesn't exist
-	if err := os.MkdirAll("./data", 0755); err != nil {
-		return fmt.Errorf("failed to create data directory: %v", err)
+func EnsureWav(youtubeID string) error {
+	wavPath := fmt.Sprintf("./data/%s.wav", youtubeID)
+	if _, err := os.Stat(wavPath); err == nil {
+		fmt.Printf("WAV %s already exists, skipping creation\n", wavPath)
+		return nil
 	}
 
-	// Download metadata (JSON)
-	if err := downloadJSON(youtubeID); err != nil {
-		fmt.Printf("Warning: Failed to download JSON metadata: %v\n", err)
-	}
+	cmd := exec.Command(
+		"ffmpeg",
+		"-y",
+		"-i", fmt.Sprintf("./data/%s.mp4", youtubeID),
+		"-vn",
+		"-acodec", "pcm_s16le",
+		"-ar", "44100",
+		"-ac", "2",
+		wavPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	// Download thumbnail
-	if err := downloadThumbnail(youtubeID); err != nil {
-		fmt.Printf("Warning: Failed to download thumbnail: %v\n", err)
-	}
-
-	// Download subtitles (VTT)
-	if err := downloadVTT(youtubeID); err != nil {
-		fmt.Printf("Warning: Failed to download VTT subtitles: %v\n", err)
-	}
-
-	// Download audio
-	if err := downloadAudio(youtubeID); err != nil {
-		return fmt.Errorf("failed to download audio: %v", err)
-	}
-
-	// Optionally download video
-	if downloadVideo {
-		if _, err := DownloadVideo(youtubeID); err != nil {
-			fmt.Printf("Warning: Failed to download video: %v\n", err)
-		}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ffmpeg failed creating WAV: %v", err)
 	}
 
 	return nil
 }
 
-func downloadJSON(youtubeID string) error {
-	jsonFile := fmt.Sprintf("./data/%s.json", youtubeID)
-	if _, err := os.Stat(jsonFile); err == nil {
-		return nil // Already exists
-	}
-
-	cmd := exec.Command("yt-dlp", 
-		"--cookies", "./cookies.txt",
-		"--write-info-json", 
-		"--skip-download",
-		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
-		fmt.Sprintf("https://www.youtube.com/watch?v=%s", youtubeID))
-
-	return cmd.Run()
-}
-
-func downloadThumbnail(youtubeID string) error {
-	thumbnailFile := fmt.Sprintf("./data/%s.jpg", youtubeID)
-	if _, err := os.Stat(thumbnailFile); err == nil {
-		return nil // Already exists
-	}
-
-	cmd := exec.Command("yt-dlp", 
-		"--cookies", "./cookies.txt",
-		"--write-thumbnail", 
-		"--skip-download",
-		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
-		fmt.Sprintf("https://www.youtube.com/watch?v=%s", youtubeID))
-
-	return cmd.Run()
-}
-
-func downloadVTT(youtubeID string) error {
+func DownloadSubtitles(youtubeID string) error {
 	vttFile := fmt.Sprintf("./data/%s.en.vtt", youtubeID)
+
+	// Check if .en.vtt file already exists
 	if _, err := os.Stat(vttFile); err == nil {
-		return nil // Already exists
+		fmt.Printf("Subtitles file %s already exists, skipping download\n", vttFile)
+		return nil
 	}
 
-	cmd := exec.Command("yt-dlp", 
-		"--cookies", "./cookies.txt",
-		"--write-auto-sub", 
-		"--sub-lang", "en",
-		"--skip-download",
-		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
-		fmt.Sprintf("https://www.youtube.com/watch?v=%s", youtubeID))
+	fmt.Printf("Downloading subtitles...\n")
+	youtubeURL := "https://www.youtube.com/watch?v=" + youtubeID
 
-	return cmd.Run()
+	// Retry with exponential backoff up to 50 times
+	var lastErr error
+	for attempt := 1; attempt <= 1; attempt++ {
+		subCmd := exec.Command("yt-dlp", "--cookies", "./cookies.txt", "-o", "./data/"+youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", youtubeURL)
+		subCmd.Stdout = os.Stdout
+		subCmd.Stderr = os.Stderr
+
+		if err := subCmd.Run(); err != nil {
+			lastErr = err
+			if attempt < 50 {
+				// Exponential backoff: wait 2^(attempt-1) seconds, capped at 60 seconds
+				delay := time.Duration(1<<uint(attempt-1)) * time.Second
+				if delay > 60*time.Second {
+					delay = 60 * time.Second
+				}
+				fmt.Printf("Subtitle download failed (attempt %d/50), retrying in %v...\n", attempt, delay)
+				time.Sleep(delay)
+				continue
+			}
+		} else {
+			// Success
+			return nil
+		}
+	}
+
+	return fmt.Errorf("could not download subtitles after 50 attempts: %v", lastErr)
 }
 
-func downloadAudio(youtubeID string) error {
-	wavFile := fmt.Sprintf("./data/%s.wav", youtubeID)
-	if _, err := os.Stat(wavFile); err == nil {
-		return nil // Already exists
-	}
+func DownloadThumbnail(youtubeID string) error {
+	jpgPath := fmt.Sprintf("./data/%s.jpg", youtubeID)
 
-	fmt.Printf("Downloading and converting audio for %s...\n", youtubeID)
-
-	// Use yt-dlp to download best audio and convert to WAV
-	cmd := exec.Command("yt-dlp",
-		"--cookies", "./cookies.txt",
-		"--extract-audio",
-		"--audio-format", "wav",
-		"--audio-quality", "0", // best quality
-		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
-		fmt.Sprintf("https://www.youtube.com/watch?v=%s", youtubeID))
-
-	// Set timeout for long downloads
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Run()
-	}()
-
-	select {
-	case err := <-done:
-		if err != nil {
-			return fmt.Errorf("download failed: %v", err)
-		}
-		fmt.Printf("Audio downloaded and converted: %s\n", wavFile)
+	if _, err := os.Stat(jpgPath); err == nil {
+		fmt.Printf("Thumbnail %s already exists, skipping download\n", jpgPath)
 		return nil
-	case <-time.After(10 * time.Minute):
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-		return fmt.Errorf("download timeout after 10 minutes")
 	}
+
+	fmt.Printf("Downloading thumbnail...\n")
+
+	cmd := exec.Command(
+		"yt-dlp",
+		"--cookies", "./cookies.txt",
+		"-o", "./data/"+youtubeID,
+		"--skip-download",
+		"--write-thumbnail",
+		"--convert-thumbnails", "jpg",
+		youtubeID,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error downloading thumbnail: %v", err)
+	}
+
+	return nil
+}
+
+func DownloadJSON(youtubeID string) error {
+	jsonPath := fmt.Sprintf("./data/%s.json", youtubeID)
+
+	if _, err := os.Stat(jsonPath); err == nil {
+		fmt.Printf("JSON metadata %s already exists, skipping download\n", jsonPath)
+		return nil
+	}
+
+	fmt.Printf("Downloading JSON metadata...\n")
+
+	cmd := exec.Command(
+		"yt-dlp",
+		"--cookies", "./cookies.txt",
+		"-j",
+		"--no-warnings",
+		"https://www.youtube.com/watch?v="+youtubeID,
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("error downloading JSON metadata: %v", err)
+	}
+
+	file, err := os.Create(jsonPath)
+	if err != nil {
+		return fmt.Errorf("error creating JSON file: %v", err)
+	}
+	defer file.Close()
+
+	_, err = file.Write(output)
+	if err != nil {
+		return fmt.Errorf("error writing JSON file: %v", err)
+	}
+
+	return nil
 }
