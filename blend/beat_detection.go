@@ -24,6 +24,13 @@ func (bs *Shell) HandleBeatDetectionCommand(cmd string, args []string) bool {
 			bs.handleBeatsCommand("") // Show both tracks
 		}
 		
+	case "quantize":
+		if len(args) > 0 {
+			bs.handleQuantizeCommand(args[0])
+		} else {
+			bs.handleQuantizeCommand("both")
+		}
+		
 	default:
 		return false // Command not handled by this module
 	}
@@ -208,4 +215,87 @@ func (bs *Shell) handleBeatsCommand(track string) {
 	} else {
 		fmt.Printf("Invalid track: %s (use 1 or 2)\n", track)
 	}
+}
+
+// handleQuantizeCommand snaps segment placements to nearest beat boundaries
+func (bs *Shell) handleQuantizeCommand(target string) {
+	switch target {
+	case "1":
+		bs.quantizeSegments(1, &bs.Segments1, bs.Beats2)
+	case "2":
+		bs.quantizeSegments(2, &bs.Segments2, bs.Beats1)
+	case "both":
+		bs.quantizeSegments(1, &bs.Segments1, bs.Beats2)
+		bs.quantizeSegments(2, &bs.Segments2, bs.Beats1)
+	default:
+		fmt.Printf("Invalid target: %s (use 1, 2, or both)\n", target)
+	}
+}
+
+// quantizeSegments snaps all segment placements to the nearest beat boundaries
+func (bs *Shell) quantizeSegments(trackNum int, segments *[]VocalSegment, targetBeats []float64) {
+	if len(targetBeats) == 0 {
+		fmt.Printf("No beats available for target track. Run beat-detect first.\n")
+		return
+	}
+	
+	quantizedCount := 0
+	totalAdjustment := 0.0
+	
+	fmt.Printf("Quantizing track %d segments to nearest beat boundaries...\n", trackNum)
+	
+	for i := range *segments {
+		segment := &(*segments)[i]
+		originalPlacement := segment.Placement
+		
+		// Find the nearest beat to the current placement
+		nearestBeat := findNearestBeat(segment.Placement, targetBeats)
+		
+		if nearestBeat != segment.Placement {
+			adjustment := nearestBeat - originalPlacement
+			segment.Placement = nearestBeat
+			quantizedCount++
+			totalAdjustment += abs(adjustment)
+			
+			fmt.Printf("  Segment %d: %.2fs → %.2fs (adjusted by %.2fs)\n", 
+				segment.Index, originalPlacement, nearestBeat, adjustment)
+		}
+	}
+	
+	if quantizedCount > 0 {
+		avgAdjustment := totalAdjustment / float64(quantizedCount)
+		fmt.Printf("Quantized %d segments with average adjustment of %.2fs\n", 
+			quantizedCount, avgAdjustment)
+	} else {
+		fmt.Printf("All segments were already aligned to beat boundaries\n")
+	}
+}
+
+// findNearestBeat finds the beat position closest to the given timestamp
+func findNearestBeat(timestamp float64, beats []float64) float64 {
+	if len(beats) == 0 {
+		return timestamp
+	}
+	
+	// Handle edge cases
+	if timestamp <= beats[0] {
+		return beats[0]
+	}
+	if timestamp >= beats[len(beats)-1] {
+		return beats[len(beats)-1]
+	}
+	
+	// Binary search for the closest beat
+	nearestBeat := beats[0]
+	minDistance := abs(timestamp - beats[0])
+	
+	for _, beat := range beats {
+		distance := abs(timestamp - beat)
+		if distance < minDistance {
+			minDistance = distance
+			nearestBeat = beat
+		}
+	}
+	
+	return nearestBeat
 }
