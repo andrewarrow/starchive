@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	
+	"starchive/audio"
+	"starchive/util"
+	"starchive/web"
 )
 
-var downloadQueue *DownloadQueue
+var downloadQueue *web.DownloadQueue
 var downloadVideos bool
 
 func main() {
@@ -28,8 +32,8 @@ func main() {
 			os.Exit(2)
 		}
 
-		downloadQueue = NewDownloadQueue()
-		setupRoutes(downloadQueue)
+		downloadQueue = web.NewDownloadQueue()
+		web.SetupRoutes(downloadQueue)
 
 		fmt.Println("Server starting on port 3009...")
 		if err := http.ListenAndServe(":3009", nil); err != nil {
@@ -45,19 +49,19 @@ func main() {
 	case "sync":
 		handleSyncCommand()
 	case "split":
-		handleSplitCommand()
+		audio.HandleSplitCommand(os.Args[2:])
 	case "rm":
-		handleRmCommand()
+		util.HandleRmCommand(os.Args[2:])
 	case "play":
-		handlePlayCommand()
+		audio.HandlePlayCommand(os.Args[2:])
 	case "demo":
-		handleDemoCommand()
+		audio.HandleDemoCommand(os.Args[2:])
 	case "blend":
 		handleBlendCommand()
 	case "blend-clear":
 		handleBlendClearCommand()
 	case "retry":
-		handleRetryCommand()
+		util.HandleRetryCommand(os.Args[2:])
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run         Start the server (default features)\n  ls          List files in ./data\n  vocal       Extract vocals from audio file using audio-separator\n  bpm         Analyze BPM and key of vocal and instrumental files\n  sync        Synchronize two audio files for mashups using rubberband\n  split       Split audio file by silence detection\n  rm          Remove all files with specified id from ./data\n  play        Play a wav file starting from the middle (press any key to stop)\n  demo        Create 30-second demo with +3 pitch shift from middle of track\n  blend       Interactive blend shell for mixing two tracks\n  blend-clear Clear blend metadata for track combinations\n  retry       Retry downloading specific components (vtt, json, thumbnail, video) for a given ID")

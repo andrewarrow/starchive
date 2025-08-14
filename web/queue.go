@@ -1,16 +1,19 @@
-package main
+package web
 
 import (
 	"fmt"
 	"sync"
+	"starchive/media"
 )
 
+// DownloadQueue manages a queue of video downloads
 type DownloadQueue struct {
 	queue     []string
 	isRunning bool
 	mutex     sync.Mutex
 }
 
+// NewDownloadQueue creates a new download queue
 func NewDownloadQueue() *DownloadQueue {
 	return &DownloadQueue{
 		queue:     make([]string, 0),
@@ -18,6 +21,7 @@ func NewDownloadQueue() *DownloadQueue {
 	}
 }
 
+// AddToQueue adds a video ID to the download queue
 func (dq *DownloadQueue) AddToQueue(videoId string) bool {
 	dq.mutex.Lock()
 	defer dq.mutex.Unlock()
@@ -56,7 +60,7 @@ func (dq *DownloadQueue) processQueue() {
 		fmt.Printf("Processing video %s. Remaining in queue: %d\n", videoId, len(dq.queue))
 		dq.mutex.Unlock()
 
-		_, err := DownloadVideo(videoId)
+		_, err := media.DownloadVideo(videoId)
 		if err != nil {
 			fmt.Printf("Error downloading video %s: %v\n", videoId, err)
 		} else {
@@ -65,6 +69,7 @@ func (dq *DownloadQueue) processQueue() {
 	}
 }
 
+// GetQueueStatus returns the current queue length and running status
 func (dq *DownloadQueue) GetQueueStatus() (int, bool) {
 	dq.mutex.Lock()
 	defer dq.mutex.Unlock()
