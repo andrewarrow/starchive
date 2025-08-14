@@ -40,6 +40,10 @@ func (bs *Shell) Completer() readline.AutoCompleter {
 			readline.PcItem("1"),
 			readline.PcItem("2"),
 		),
+		readline.PcItem("analyze-segments",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+		),
 		readline.PcItem("place"),
 		readline.PcItem("shift"),
 		readline.PcItem("toggle"),
@@ -120,6 +124,7 @@ func (bs *Shell) ShowHelp() {
 	fmt.Printf("Vocal Segments:\n")
 	fmt.Printf("  split <1|2>         Split vocal track into segments by silence\n")
 	fmt.Printf("  segments [1|2]      List available segments\n")
+	fmt.Printf("  analyze-segments <1|2> Analyze energy levels of segments\n")
 	fmt.Printf("  place <track:seg> at <time> Place segment (e.g. '1:3 at 45.2')\n")
 	fmt.Printf("  shift <track:seg> <+/-time> Adjust segment timing (e.g. '1:3 +2.5')\n")
 	fmt.Printf("  toggle <track:seg>  Enable/disable segment (e.g. '1:3')\n")

@@ -14,6 +14,9 @@ type VocalSegment struct {
 	Duration  float64 `json:"duration"`
 	Placement float64 `json:"placement"` // Where to place in target track
 	Active    bool    `json:"active"`    // Whether this segment is enabled
+	RMSEnergy float64 `json:"rms_energy"` // Root Mean Square energy level (0.0-1.0)
+	PeakLevel float64 `json:"peak_level"` // Peak amplitude level (0.0-1.0)
+	EnergyCategory string `json:"energy_category"` // "low", "medium", "high"
 }
 
 // Shell represents the blend shell for mixing two tracks
