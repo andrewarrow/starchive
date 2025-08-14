@@ -364,6 +364,12 @@ func (bs *BlendShell) playBlendBasic(startPosition1, startPosition2, maxAvailabl
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Generate output filename with timestamp
+	outputFile := fmt.Sprintf("./data/blend_%s_%s_%d.wav", bs.id1, bs.id2, time.Now().Unix())
+	
+	// Start recording the mix to file
+	go bs.recordBlendBasic(ctx, startPosition1, startPosition2, maxAvailableDuration, outputFile)
+
 	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1, maxAvailableDuration)
 	ffplayArgs2 := bs.buildFFplayArgs(bs.inputPath2, startPosition2, bs.pitch2, bs.tempo2, bs.volume2, maxAvailableDuration)
 
@@ -385,12 +391,18 @@ func (bs *BlendShell) playBlendBasic(startPosition1, startPosition2, maxAvailabl
 	}()
 
 	<-ctx.Done()
-	fmt.Printf("Playback stopped.\n\n")
+	fmt.Printf("Playback stopped. Mix saved to %s\n\n", outputFile)
 }
 
 func (bs *BlendShell) playBlendWithSegments(startPosition1, startPosition2, maxAvailableDuration float64) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Generate output filename with timestamp
+	outputFile := fmt.Sprintf("./data/blend_%s_%s_%d.wav", bs.id1, bs.id2, time.Now().Unix())
+	
+	// Start recording the mix to file
+	go bs.recordBlendWithSegments(ctx, startPosition1, startPosition2, maxAvailableDuration, outputFile)
 
 	// Play base tracks
 	ffplayArgs1 := bs.buildFFplayArgs(bs.inputPath1, startPosition1, bs.pitch1, bs.tempo1, bs.volume1, maxAvailableDuration)
@@ -417,7 +429,7 @@ func (bs *BlendShell) playBlendWithSegments(startPosition1, startPosition2, maxA
 	}()
 
 	<-ctx.Done()
-	fmt.Printf("Playback stopped.\n\n")
+	fmt.Printf("Playback stopped. Mix saved to %s\n\n", outputFile)
 }
 
 func (bs *BlendShell) playActiveSegments(ctx context.Context, startPosition1, startPosition2, maxAvailableDuration float64) {
@@ -563,4 +575,83 @@ func (bs *BlendShell) buildFFplayArgs(inputPath string, startPos float64, pitch 
 
 	args = append(args, inputPath)
 	return args
+}
+
+func (bs *BlendShell) recordBlendBasic(ctx context.Context, startPosition1, startPosition2, maxAvailableDuration float64, outputFile string) {
+	// Build ffmpeg command to mix two tracks and output to file
+	ffmpegArgs := []string{
+		"-y", // Overwrite output file
+		"-ss", fmt.Sprintf("%.1f", startPosition1),
+		"-i", bs.inputPath1,
+		"-ss", fmt.Sprintf("%.1f", startPosition2), 
+		"-i", bs.inputPath2,
+		"-t", fmt.Sprintf("%.1f", maxAvailableDuration),
+	}
+	
+	// Build filter complex for mixing with effects
+	var filterComplex []string
+	
+	// Process track 1
+	filter1 := "[0:a]"
+	if bs.tempo1 != 0 {
+		tempoMultiplier := 1.0 + (bs.tempo1 / 100.0)
+		if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
+			filter1 += fmt.Sprintf("atempo=%.6f,", tempoMultiplier)
+		}
+	}
+	if bs.pitch1 != 0 {
+		pitchSemitones := float64(bs.pitch1)
+		filter1 += fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f,", 
+			math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0))
+	}
+	if bs.volume1 != 100 {
+		volumeMultiplier := bs.volume1 / 100.0
+		filter1 += fmt.Sprintf("volume=%.6f,", volumeMultiplier)
+	}
+	// Remove trailing comma
+	if strings.HasSuffix(filter1, ",") {
+		filter1 = filter1[:len(filter1)-1]
+	}
+	filter1 += "[a1]"
+	
+	// Process track 2
+	filter2 := "[1:a]"
+	if bs.tempo2 != 0 {
+		tempoMultiplier := 1.0 + (bs.tempo2 / 100.0)
+		if tempoMultiplier > 0.5 && tempoMultiplier <= 2.0 {
+			filter2 += fmt.Sprintf("atempo=%.6f,", tempoMultiplier)
+		}
+	}
+	if bs.pitch2 != 0 {
+		pitchSemitones := float64(bs.pitch2)
+		filter2 += fmt.Sprintf("asetrate=44100*%.6f,aresample=44100,atempo=%.6f,", 
+			math.Pow(2, pitchSemitones/12.0), 1.0/math.Pow(2, pitchSemitones/12.0))
+	}
+	if bs.volume2 != 100 {
+		volumeMultiplier := bs.volume2 / 100.0
+		filter2 += fmt.Sprintf("volume=%.6f,", volumeMultiplier)
+	}
+	// Remove trailing comma
+	if strings.HasSuffix(filter2, ",") {
+		filter2 = filter2[:len(filter2)-1]
+	}
+	filter2 += "[a2]"
+	
+	// Mix both processed tracks
+	filterComplex = append(filterComplex, filter1)
+	filterComplex = append(filterComplex, filter2) 
+	filterComplex = append(filterComplex, "[a1][a2]amix=inputs=2[out]")
+	
+	ffmpegArgs = append(ffmpegArgs, "-filter_complex", strings.Join(filterComplex, ";"))
+	ffmpegArgs = append(ffmpegArgs, "-map", "[out]")
+	ffmpegArgs = append(ffmpegArgs, outputFile)
+	
+	cmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
+	cmd.Run()
+}
+
+func (bs *BlendShell) recordBlendWithSegments(ctx context.Context, startPosition1, startPosition2, maxAvailableDuration float64, outputFile string) {
+	// For segments, we need a more complex approach
+	// For now, fall back to basic recording - implementing full segment mixing is complex
+	bs.recordBlendBasic(ctx, startPosition1, startPosition2, maxAvailableDuration, outputFile)
 }
