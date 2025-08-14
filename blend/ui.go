@@ -44,6 +44,15 @@ func (bs *Shell) Completer() readline.AutoCompleter {
 			readline.PcItem("1"),
 			readline.PcItem("2"),
 		),
+		readline.PcItem("beat-detect",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+			readline.PcItem("both"),
+		),
+		readline.PcItem("beats",
+			readline.PcItem("1"),
+			readline.PcItem("2"),
+		),
 		readline.PcItem("place"),
 		readline.PcItem("shift"),
 		readline.PcItem("toggle"),
@@ -95,6 +104,11 @@ func (bs *Shell) ShowStatus() {
 		fmt.Printf("Segments: Track 1: %d/%d active, Track 2: %d/%d active\n", 
 			activeSegments1, len(bs.Segments1), activeSegments2, len(bs.Segments2))
 	}
+	
+	if len(bs.Beats1) > 0 || len(bs.Beats2) > 0 {
+		fmt.Printf("Beats: Track 1: %d detected, Track 2: %d detected\n",
+			len(bs.Beats1), len(bs.Beats2))
+	}
 	fmt.Printf("\n")
 }
 
@@ -125,6 +139,10 @@ func (bs *Shell) ShowHelp() {
 	fmt.Printf("  split <1|2>         Split vocal track into segments by silence\n")
 	fmt.Printf("  segments [1|2]      List available segments\n")
 	fmt.Printf("  analyze-segments <1|2> Analyze energy levels of segments\n")
+	fmt.Printf("Beat Detection:\n")
+	fmt.Printf("  beat-detect <1|2|both> Detect beat positions in tracks\n")
+	fmt.Printf("  beats [1|2]         Show detected beat positions\n")
+	fmt.Printf("Segment Placement:\n")
 	fmt.Printf("  place <track:seg> at <time> Place segment (e.g. '1:3 at 45.2')\n")
 	fmt.Printf("  shift <track:seg> <+/-time> Adjust segment timing (e.g. '1:3 +2.5')\n")
 	fmt.Printf("  toggle <track:seg>  Enable/disable segment (e.g. '1:3')\n")

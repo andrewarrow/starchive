@@ -36,12 +36,42 @@ func WriteCookiesFile(cookiesStr string) error {
 	return nil
 }
 
+// writeCookiesFile is the original working implementation
+func writeCookiesFile(cookiesStr string) error {
+	file, err := os.Create("./cookies.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create cookies file: %v", err)
+	}
+	defer file.Close()
+
+	// Write Netscape HTTP Cookie File header
+	file.WriteString("# Netscape HTTP Cookie File\n")
+	
+	// Parse cookies string and convert to Netscape format
+	// Expected format: "name1=value1; name2=value2; ..."
+	cookies := strings.Split(cookiesStr, "; ")
+	for _, cookie := range cookies {
+		parts := strings.SplitN(cookie, "=", 2)
+		if len(parts) == 2 {
+			name := parts[0]
+			value := parts[1]
+			// Write in Netscape format: domain, flag, path, secure, expiration, name, value
+			fmt.Fprintf(file, ".youtube.com\tTRUE\t/\tFALSE\t0\t%s\t%s\n", name, value)
+		}
+	}
+	
+	return nil
+}
+
 // SetupRoutes configures HTTP routes for the web server
 func SetupRoutes(downloadQueue interface{}) {
 	http.HandleFunc("/api/download", func(w http.ResponseWriter, r *http.Request) {
 		handleDownload(w, r, downloadQueue)
 	})
 	http.HandleFunc("/api/cookies", handleSetCookies)
+	http.HandleFunc("/youtube", func(w http.ResponseWriter, r *http.Request) {
+		handleYouTube(w, r, downloadQueue)
+	})
 	http.HandleFunc("/", handleStatic)
 }
 
@@ -113,6 +143,76 @@ func handleSetCookies(w http.ResponseWriter, r *http.Request) {
 		"status": "success",
 		"message": "Cookies updated successfully",
 	})
+}
+
+func handleYouTube(w http.ResponseWriter, r *http.Request, downloadQueue interface{}) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(body, &jsonData); err != nil {
+		fmt.Printf("Invalid JSON received: %s\n", string(body))
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("JSON received: %+v\n", jsonData)
+
+	id, ok := jsonData["videoId"].(string)
+	if !ok {
+		http.Error(w, "Missing or invalid 'videoId' field", http.StatusBadRequest)
+		return
+	}
+
+	// Handle cookies if provided - support both string and array formats
+	if cookies, ok := jsonData["cookies"].(string); ok && cookies != "" {
+		if err := writeCookiesFile(cookies); err != nil {
+			fmt.Printf("Warning: failed to write cookies: %v\n", err)
+		}
+	} else if cookiesArray, ok := jsonData["cookies"].([]interface{}); ok && len(cookiesArray) > 0 {
+		// Convert array format to string format
+		cookiesStr := ""
+		for _, cookie := range cookiesArray {
+			if c, ok := cookie.(map[string]interface{}); ok {
+				name, nameOk := c["name"].(string)
+				value, valueOk := c["value"].(string)
+				if nameOk && valueOk && name != "" && value != "" {
+					if cookiesStr != "" {
+						cookiesStr += "; "
+					}
+					cookiesStr += name + "=" + value
+				}
+			}
+		}
+		if cookiesStr != "" {
+			if err := writeCookiesFile(cookiesStr); err != nil {
+				fmt.Printf("Warning: failed to write cookies: %v\n", err)
+			}
+		}
+	}
+
+	// Add to download queue
+	if queue, ok := downloadQueue.(*DownloadQueue); ok {
+		added := queue.AddToQueue(id)
+		if !added {
+			fmt.Fprintf(w, "Video %s is already in download queue", id)
+			return
+		}
+
+		queueLength, isRunning := queue.GetQueueStatus()
+		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
+	} else {
+		http.Error(w, "Download queue not available", http.StatusInternalServerError)
+	}
 }
 
 func handleStatic(w http.ResponseWriter, r *http.Request) {

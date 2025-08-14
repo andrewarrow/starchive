@@ -25,6 +25,7 @@ func DownloadVideo(youtubeID string) (string, error) {
 	fmt.Printf("Downloading video %s...\n", youtubeID)
 
 	cmd := exec.Command("yt-dlp", 
+		"--cookies", "./cookies.txt",
 		"--format", "best[height<=720]",
 		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
 		fmt.Sprintf("https://www.youtube.com/watch?v=%s", youtubeID))
@@ -84,6 +85,7 @@ func downloadJSON(youtubeID string) error {
 	}
 
 	cmd := exec.Command("yt-dlp", 
+		"--cookies", "./cookies.txt",
 		"--write-info-json", 
 		"--skip-download",
 		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
@@ -99,6 +101,7 @@ func downloadThumbnail(youtubeID string) error {
 	}
 
 	cmd := exec.Command("yt-dlp", 
+		"--cookies", "./cookies.txt",
 		"--write-thumbnail", 
 		"--skip-download",
 		"--output", fmt.Sprintf("./data/%s.%%(ext)s", youtubeID),
@@ -114,6 +117,7 @@ func downloadVTT(youtubeID string) error {
 	}
 
 	cmd := exec.Command("yt-dlp", 
+		"--cookies", "./cookies.txt",
 		"--write-auto-sub", 
 		"--sub-lang", "en",
 		"--skip-download",
@@ -133,6 +137,7 @@ func downloadAudio(youtubeID string) error {
 
 	// Use yt-dlp to download best audio and convert to WAV
 	cmd := exec.Command("yt-dlp",
+		"--cookies", "./cookies.txt",
 		"--extract-audio",
 		"--audio-format", "wav",
 		"--audio-quality", "0", // best quality

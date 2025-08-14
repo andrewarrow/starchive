@@ -34,6 +34,7 @@ type Shell struct {
 	PreviousBPMMatch, PreviousKeyMatch string
 	Segments1, Segments2 []VocalSegment // Vocal segments for each track
 	SegmentsDir1, SegmentsDir2 string   // Directories containing split files
+	Beats1, Beats2 []float64           // Beat positions in seconds for each track
 }
 
 // InvertState stores the state for intelligent track matching
