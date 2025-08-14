@@ -36,6 +36,9 @@ func (bs *Shell) HandleMatchingCommand(cmd string, args []string) bool {
 	case "invert":
 		bs.handleInvertCommand()
 		
+	case "auto-match":
+		bs.handleAutoMatchCommand()
+		
 	default:
 		return false // Command not handled by this module
 	}
@@ -215,4 +218,84 @@ func (bs *Shell) applyInvertedState() {
 	// Clear the state file so next invert toggles back
 	stateFile := fmt.Sprintf("/tmp/starchive_invert_%s_%s.tmp", bs.ID1, bs.ID2)
 	os.Remove(stateFile)
+}
+
+// handleAutoMatchCommand intelligently determines best BPM/key matching direction
+func (bs *Shell) handleAutoMatchCommand() {
+	if bs.Metadata1 == nil || bs.Metadata2 == nil {
+		fmt.Printf("Metadata not available for auto-matching\n")
+		return
+	}
+
+	fmt.Printf("Analyzing tracks for optimal matching...\n")
+	
+	// Reset current adjustments
+	bs.ResetAdjustments()
+	
+	// Determine BPM matching direction
+	var bpmDirection string
+	if bs.Metadata1.BPM != nil && bs.Metadata2.BPM != nil {
+		bpm1 := *bs.Metadata1.BPM
+		bpm2 := *bs.Metadata2.BPM
+		
+		// Calculate ratios for both directions
+		ratio1to2 := bpm2 / bpm1
+		ratio2to1 := bpm1 / bpm2
+		
+		// Choose direction with smaller adjustment (closer to 1.0)
+		diff1to2 := abs(ratio1to2 - 1.0)
+		diff2to1 := abs(ratio2to1 - 1.0)
+		
+		if diff1to2 <= diff2to1 {
+			bpmDirection = "bpm1to2"
+			fmt.Printf("  BPM: %.1f -> %.1f (ratio: %.2fx, %.1f%% change)\n", 
+				bpm1, bpm2, ratio1to2, (ratio1to2-1.0)*100)
+		} else {
+			bpmDirection = "bpm2to1"
+			fmt.Printf("  BPM: %.1f -> %.1f (ratio: %.2fx, %.1f%% change)\n", 
+				bpm2, bpm1, ratio2to1, (ratio2to1-1.0)*100)
+		}
+	} else {
+		fmt.Printf("  BPM: No BPM data available\n")
+	}
+	
+	// Determine key matching direction
+	var keyDirection string
+	if bs.Metadata1.Key != nil && bs.Metadata2.Key != nil {
+		key1 := *bs.Metadata1.Key
+		key2 := *bs.Metadata2.Key
+		
+		// Calculate key differences for both directions
+		diff1to2 := audio.CalculateKeyDifference(key1, key2)
+		diff2to1 := audio.CalculateKeyDifference(key2, key1)
+		
+		// Choose direction with smaller semitone adjustment
+		if abs(float64(diff1to2)) <= abs(float64(diff2to1)) {
+			keyDirection = "key1to2"
+			fmt.Printf("  Key: %s -> %s (%+d semitones)\n", key1, key2, diff1to2)
+		} else {
+			keyDirection = "key2to1"
+			fmt.Printf("  Key: %s -> %s (%+d semitones)\n", key2, key1, diff2to1)
+		}
+	} else {
+		fmt.Printf("  Key: No key data available\n")
+	}
+	
+	// Apply the chosen matching
+	if bpmDirection != "" {
+		bs.handleMatchCommand(bpmDirection)
+	}
+	if keyDirection != "" {
+		bs.handleMatchCommand(keyDirection)
+	}
+	
+	fmt.Printf("Auto-match complete!\n")
+}
+
+// abs returns absolute value of float64
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
