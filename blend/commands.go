@@ -20,9 +20,15 @@ func (bs *Shell) HandleCommand(input string) bool {
 	}
 	args := parts[1:]
 	
+	// Check for exit commands first
+	if IsExitCommand(cmd) {
+		bs.HandleBasicCommand(cmd, args) // Print exit message
+		return false // Exit the shell
+	}
+	
 	// Try each command module in order
-	if !bs.HandleBasicCommand(cmd, args) {
-		return false // Exit command was processed
+	if bs.HandleBasicCommand(cmd, args) {
+		return true
 	}
 	
 	if bs.HandleAudioCommand(cmd, args) {
