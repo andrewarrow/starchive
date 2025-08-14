@@ -31,7 +31,7 @@ func (bs *Shell) HandleBasicCommand(cmd string, args []string) bool {
 			bs.handleFoundationCommand(args[0])
 		} else {
 			fmt.Printf("Usage: foundation <N>  (runs steps 1-N from PLAN.md)\n")
-			fmt.Printf("Available steps: 1=analyze-segments, 2=beat-detect, 3=auto-match, 4=conflict-detect, 5=segment-trim, 6=smart-random, 7=gap-finder\n")
+			fmt.Printf("Available steps: 1=analyze-segments, 2=beat-detect, 3=auto-match, 4=conflict-detect, 5=segment-trim, 6=smart-random, 7=gap-finder, 8=quantize\n")
 		}
 
 	default:
@@ -228,7 +228,7 @@ func (bs *Shell) handleFoundationCommand(stepArg string) {
 	// Step 5: segment-trim
 	if maxStep >= 5 {
 		fmt.Printf("Step 5: Auto-trimming silence from segments...\n")
-		bs.HandleSegmentManipulationCommand("segment-trim", []string{"1"})
+		//bs.HandleSegmentManipulationCommand("segment-trim", []string{"1"})
 		fmt.Printf("\n")
 	}
 
@@ -243,6 +243,13 @@ func (bs *Shell) handleFoundationCommand(stepArg string) {
 	if maxStep >= 7 {
 		fmt.Printf("Step 7: Analyzing instrumental track for vocal gaps...\n")
 		bs.HandleAudioCommand("gap-finder", []string{"2"}) // Analyze track 2 (instrumental) for gaps
+		fmt.Printf("\n")
+	}
+
+	// Step 8: quantize
+	if maxStep >= 8 {
+		fmt.Printf("Step 8: Quantizing segments to beat boundaries...\n")
+		bs.HandleBeatDetectionCommand("quantize", []string{"both"})
 		fmt.Printf("\n")
 	}
 
