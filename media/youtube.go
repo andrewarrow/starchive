@@ -106,7 +106,11 @@ func DownloadSubtitles(youtubeID string) error {
 				continue
 			}
 		} else {
-			// Success
+			// Success - parse the VTT file
+			vttPath := fmt.Sprintf("./data/%s.en.vtt", youtubeID)
+			if err := parseVttFile(vttPath, youtubeID); err != nil {
+				fmt.Printf("Warning: failed to parse VTT file: %v\n", err)
+			}
 			return nil
 		}
 	}
