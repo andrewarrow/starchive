@@ -158,6 +158,47 @@ func (bs *Shell) HandleCommand(input string) bool {
 			bs.handlePlayCommand(-1) // -1 means use default (middle)
 		}
 		
+	case "split":
+		if len(args) > 0 {
+			bs.handleSplitCommand(args[0])
+		} else {
+			fmt.Printf("Usage: split <1|2>\n")
+		}
+		
+	case "segments":
+		if len(args) > 0 {
+			bs.handleSegmentsCommand(args[0])
+		} else {
+			bs.handleSegmentsCommand("") // List both tracks
+		}
+		
+	case "random":
+		if len(args) > 0 {
+			bs.handleRandomCommand(args[0])
+		} else {
+			fmt.Printf("Usage: random <1|2>\n")
+		}
+		
+	case "place":
+		bs.handlePlaceCommand(args)
+		
+	case "shift":
+		bs.handleShiftCommand(args)
+		
+	case "toggle":
+		if len(args) > 0 {
+			bs.handleToggleCommand(args[0])
+		} else {
+			fmt.Printf("Usage: toggle <track:segment> (e.g. 1:3)\n")
+		}
+		
+	case "preview":
+		if len(args) > 0 {
+			bs.handlePreviewCommand(args[0])
+		} else {
+			fmt.Printf("Usage: preview <track:segment> (e.g. 1:3)\n")
+		}
+		
 	case "invert":
 		bs.handleInvertCommand()
 		
@@ -285,4 +326,87 @@ func (bs *Shell) handlePlayCommand(startFrom float64) {
 func (bs *Shell) handleInvertCommand() {
 	fmt.Printf("Invert functionality not yet implemented in new package structure\n")
 	fmt.Printf("TODO: Implement intelligent matching in blend package\n")
+}
+
+// handleSplitCommand splits a track into vocal segments
+func (bs *Shell) handleSplitCommand(track string) {
+	fmt.Printf("Split functionality not yet implemented in new package structure\n")
+	fmt.Printf("TODO: Implement vocal splitting for track %s\n", track)
+}
+
+// handleSegmentsCommand lists available segments for a track
+func (bs *Shell) handleSegmentsCommand(track string) {
+	if track == "" {
+		// List segments for both tracks
+		fmt.Printf("Track 1 segments: %d total\n", len(bs.Segments1))
+		for i, seg := range bs.Segments1 {
+			status := "inactive"
+			if seg.Active {
+				status = "active"
+			}
+			endTime := seg.StartTime + seg.Duration
+			fmt.Printf("  1:%d - %.2fs to %.2fs (%s)\n", i+1, seg.StartTime, endTime, status)
+		}
+		fmt.Printf("Track 2 segments: %d total\n", len(bs.Segments2))
+		for i, seg := range bs.Segments2 {
+			status := "inactive"
+			if seg.Active {
+				status = "active"
+			}
+			endTime := seg.StartTime + seg.Duration
+			fmt.Printf("  2:%d - %.2fs to %.2fs (%s)\n", i+1, seg.StartTime, endTime, status)
+		}
+	} else if track == "1" {
+		fmt.Printf("Track 1 segments: %d total\n", len(bs.Segments1))
+		for i, seg := range bs.Segments1 {
+			status := "inactive"
+			if seg.Active {
+				status = "active"
+			}
+			endTime := seg.StartTime + seg.Duration
+			fmt.Printf("  1:%d - %.2fs to %.2fs (%s)\n", i+1, seg.StartTime, endTime, status)
+		}
+	} else if track == "2" {
+		fmt.Printf("Track 2 segments: %d total\n", len(bs.Segments2))
+		for i, seg := range bs.Segments2 {
+			status := "inactive"
+			if seg.Active {
+				status = "active"
+			}
+			endTime := seg.StartTime + seg.Duration
+			fmt.Printf("  2:%d - %.2fs to %.2fs (%s)\n", i+1, seg.StartTime, endTime, status)
+		}
+	} else {
+		fmt.Printf("Invalid track: %s (use 1 or 2)\n", track)
+	}
+}
+
+// handleRandomCommand randomly places segments from a track
+func (bs *Shell) handleRandomCommand(track string) {
+	fmt.Printf("Random placement functionality not yet implemented in new package structure\n")
+	fmt.Printf("TODO: Implement random segment placement for track %s\n", track)
+}
+
+// handlePlaceCommand places a segment at a specific time
+func (bs *Shell) handlePlaceCommand(args []string) {
+	fmt.Printf("Place functionality not yet implemented in new package structure\n")
+	fmt.Printf("TODO: Implement segment placement\n")
+}
+
+// handleShiftCommand shifts a segment timing
+func (bs *Shell) handleShiftCommand(args []string) {
+	fmt.Printf("Shift functionality not yet implemented in new package structure\n")
+	fmt.Printf("TODO: Implement segment timing shift\n")
+}
+
+// handleToggleCommand toggles a segment on/off
+func (bs *Shell) handleToggleCommand(segmentRef string) {
+	fmt.Printf("Toggle functionality not yet implemented in new package structure\n")
+	fmt.Printf("TODO: Implement segment toggle for %s\n", segmentRef)
+}
+
+// handlePreviewCommand previews a specific segment
+func (bs *Shell) handlePreviewCommand(segmentRef string) {
+	fmt.Printf("Preview functionality not yet implemented in new package structure\n")
+	fmt.Printf("TODO: Implement segment preview for %s\n", segmentRef)
 }
