@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"starchive/media"
 )
 
 // HandleRmCommand removes all files with specified ID from data directory
@@ -92,7 +93,7 @@ func HandleRmCommand(args []string) {
 
 // HandleRetryCommand retries downloading specific components
 func HandleRetryCommand(args []string) {
-	if len(args) < 3 {
+	if len(args) < 2 {
 		fmt.Println("Usage: starchive retry <id> <component> [component...]")
 		fmt.Println("Components: vtt, json, thumbnail, video")
 		fmt.Println("Example: starchive retry abc123 vtt json")
@@ -126,8 +127,17 @@ func retryVTT(id string) {
 	
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error downloading VTT: %v\n", err)
+		return
+	}
+	
+	fmt.Printf("VTT download completed for %s\n", id)
+	
+	// Parse VTT file to create .txt file
+	vttPath := fmt.Sprintf("./data/%s.en.vtt", id)
+	if err := media.ParseVttFile(vttPath, id); err != nil {
+		fmt.Printf("Warning: failed to parse VTT file: %v\n", err)
 	} else {
-		fmt.Printf("VTT download completed for %s\n", id)
+		fmt.Printf("Created .txt file from VTT for %s\n", id)
 	}
 }
 

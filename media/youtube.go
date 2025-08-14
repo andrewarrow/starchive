@@ -75,7 +75,7 @@ func EnsureWav(youtubeID string) error {
 }
 
 func DownloadSubtitles(youtubeID string) error {
-	vttFile := fmt.Sprintf("./data/%s.en.vtt", youtubeID)
+	vttFile := youtubeID + ".en.vtt"
 
 	// Check if .en.vtt file already exists
 	if _, err := os.Stat(vttFile); err == nil {
@@ -108,7 +108,7 @@ func DownloadSubtitles(youtubeID string) error {
 		} else {
 			// Success - parse the VTT file
 			vttPath := fmt.Sprintf("./data/%s.en.vtt", youtubeID)
-			if err := parseVttFile(vttPath, youtubeID); err != nil {
+			if err := ParseVttFile(vttPath, youtubeID); err != nil {
 				fmt.Printf("Warning: failed to parse VTT file: %v\n", err)
 			}
 			return nil

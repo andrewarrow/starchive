@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func parseVttFile(filename, id string) error {
+func ParseVttFile(filename, id string) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
