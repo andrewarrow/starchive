@@ -1,12 +1,15 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 	
 	"starchive/audio"
 	"starchive/media"
@@ -342,4 +345,135 @@ func handleDlCommand() {
 		fmt.Printf("Error downloading video: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func handleExternalCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive external <file_path>")
+		fmt.Println("Example: starchive external ~/Documents/cd_audio_from_gnr_lies.wav")
+		fmt.Println("This will copy the external file into the data directory and create a metadata JSON file")
+		os.Exit(1)
+	}
+
+	sourceFilePath := os.Args[2]
+	
+	// Expand tilde to home directory
+	if strings.HasPrefix(sourceFilePath, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Printf("Error getting home directory: %v\n", err)
+			os.Exit(1)
+		}
+		sourceFilePath = filepath.Join(homeDir, sourceFilePath[2:])
+	}
+
+	// Check if source file exists
+	if _, err := os.Stat(sourceFilePath); os.IsNotExist(err) {
+		fmt.Printf("Error: Source file %s does not exist\n", sourceFilePath)
+		os.Exit(1)
+	}
+
+	// Generate ID from first 11 characters of SHA256 hash of file path
+	hasher := sha256.New()
+	hasher.Write([]byte(sourceFilePath))
+	hash := fmt.Sprintf("%x", hasher.Sum(nil))
+	id := hash[:11]
+
+	fmt.Printf("Generated ID: %s\n", id)
+
+	// Get filename without extension for title
+	filename := filepath.Base(sourceFilePath)
+	title := strings.TrimSuffix(filename, filepath.Ext(filename))
+
+	// Determine file extension
+	ext := strings.ToLower(filepath.Ext(sourceFilePath))
+	
+	// Copy file to data directory
+	dataDir := "./data"
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		fmt.Printf("Error creating data directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	destPath := filepath.Join(dataDir, id+ext)
+	
+	// Check if destination already exists
+	if _, err := os.Stat(destPath); err == nil {
+		fmt.Printf("File with ID %s already exists in data directory\n", id)
+		os.Exit(1)
+	}
+
+	// Copy file
+	sourceFile, err := os.Open(sourceFilePath)
+	if err != nil {
+		fmt.Printf("Error opening source file: %v\n", err)
+		os.Exit(1)
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		fmt.Printf("Error creating destination file: %v\n", err)
+		os.Exit(1)
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		fmt.Printf("Error copying file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Copied file to: %s\n", destPath)
+
+	// Create JSON metadata file
+	metadata := map[string]interface{}{
+		"id":       id,
+		"title":    title,
+		"source":   "external",
+		"original_path": sourceFilePath,
+		"imported_at": time.Now().Format(time.RFC3339),
+		"filename": filename,
+	}
+
+	jsonPath := filepath.Join(dataDir, id+".json")
+	jsonData, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		fmt.Printf("Error creating JSON metadata: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = os.WriteFile(jsonPath, jsonData, 0644)
+	if err != nil {
+		fmt.Printf("Error writing JSON file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Created metadata file: %s\n", jsonPath)
+	
+	// Add to database
+	db, err := util.InitDatabase()
+	if err != nil {
+		fmt.Printf("Warning: Could not initialize database: %v\n", err)
+	} else {
+		defer db.Close()
+		
+		videoMetadata := util.VideoMetadata{
+			ID:           id,
+			Title:        &title,
+			LastModified: time.Now(),
+			VocalDone:    false,
+		}
+		
+		if err := db.SaveMetadata(&videoMetadata); err != nil {
+			fmt.Printf("Warning: Could not save to database: %v\n", err)
+		} else {
+			fmt.Printf("Added to database with ID: %s\n", id)
+		}
+	}
+
+	fmt.Printf("\nExternal file successfully imported!\n")
+	fmt.Printf("ID: %s\n", id)
+	fmt.Printf("Title: %s\n", title)
+	fmt.Printf("File: %s\n", destPath)
 }
