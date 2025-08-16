@@ -9,6 +9,7 @@ import (
 	"strings"
 	
 	"starchive/audio"
+	"starchive/media"
 	"starchive/util"
 )
 
@@ -324,5 +325,21 @@ func handleSyncCommand() {
 		baseName := strings.TrimSuffix(file, ".wav")
 		outputName := fmt.Sprintf("%s_%s.wav", baseName, suffixes[i])
 		fmt.Printf("  %s\n", outputName)
+	}
+}
+
+func handleDlCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive dl <id>")
+		fmt.Println("Example: starchive dl abc123")
+		os.Exit(1)
+	}
+
+	videoId := os.Args[2]
+	
+	_, err := media.DownloadVideo(videoId)
+	if err != nil {
+		fmt.Printf("Error downloading video: %v\n", err)
+		os.Exit(1)
 	}
 }
