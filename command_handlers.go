@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -373,17 +372,17 @@ func handleExternalCommand() {
 		os.Exit(1)
 	}
 
-	// Generate ID from first 11 characters of SHA256 hash of file path
-	hasher := sha256.New()
-	hasher.Write([]byte(sourceFilePath))
-	hash := fmt.Sprintf("%x", hasher.Sum(nil))
-	id := hash[:11]
-
-	fmt.Printf("Generated ID: %s\n", id)
-
-	// Get filename without extension for title
+	// Get filename without extension for title and ID
 	filename := filepath.Base(sourceFilePath)
 	title := strings.TrimSuffix(filename, filepath.Ext(filename))
+	
+	// Generate ID from first 11 characters of filename (without extension)
+	id := title
+	if len(id) > 11 {
+		id = id[:11]
+	}
+
+	fmt.Printf("Generated ID: %s\n", id)
 
 	// Determine file extension
 	ext := strings.ToLower(filepath.Ext(sourceFilePath))
