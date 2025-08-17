@@ -30,12 +30,19 @@ func DownloadYouTube(youtubeID string) (string, error) {
 
 	fmt.Printf("Downloading YouTube video %s...\n", youtubeID)
 
-	cmd := exec.Command("yt-dlp",
+	args := []string{
 		"--cookies", cookieFile,
 		"-o", "./data/%(id)s.%(ext)s",
 		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
 		"--merge-output-format", "mp4",
-		"https://www.youtube.com/watch?v="+youtubeID)
+	}
+
+	if poToken := getPOToken(cookieFile); poToken != "" {
+		args = append(args, "--extractor-args", "youtube:po_token="+poToken)
+	}
+
+	args = append(args, "https://www.youtube.com/watch?v="+youtubeID)
+	cmd := exec.Command("yt-dlp", args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -65,7 +72,14 @@ func DownloadYouTubeSubtitles(youtubeID, cookieFile string) error {
 	// Retry with exponential backoff up to 50 times
 	var lastErr error
 	for attempt := 1; attempt <= 1; attempt++ {
-		subCmd := exec.Command("yt-dlp", "--cookies", cookieFile, "-o", "./data/"+youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", youtubeURL)
+		subArgs := []string{"--cookies", cookieFile, "-o", "./data/" + youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en"}
+		
+		if poToken := getPOToken(cookieFile); poToken != "" {
+			subArgs = append(subArgs, "--extractor-args", "youtube:po_token="+poToken)
+		}
+		
+		subArgs = append(subArgs, youtubeURL)
+		subCmd := exec.Command("yt-dlp", subArgs...)
 		subCmd.Stdout = os.Stdout
 		subCmd.Stderr = os.Stderr
 
@@ -104,15 +118,20 @@ func DownloadYouTubeThumbnail(youtubeID, cookieFile string) error {
 
 	fmt.Printf("Downloading YouTube thumbnail...\n")
 
-	cmd := exec.Command(
-		"yt-dlp",
+	thumbArgs := []string{
 		"--cookies", cookieFile,
-		"-o", "./data/"+youtubeID,
+		"-o", "./data/" + youtubeID,
 		"--skip-download",
 		"--write-thumbnail",
 		"--convert-thumbnails", "jpg",
-		"https://www.youtube.com/watch?v="+youtubeID,
-	)
+	}
+
+	if poToken := getPOToken(cookieFile); poToken != "" {
+		thumbArgs = append(thumbArgs, "--extractor-args", "youtube:po_token="+poToken)
+	}
+
+	thumbArgs = append(thumbArgs, "https://www.youtube.com/watch?v="+youtubeID)
+	cmd := exec.Command("yt-dlp", thumbArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -133,13 +152,18 @@ func DownloadYouTubeJSON(youtubeID, cookieFile string) error {
 
 	fmt.Printf("Downloading YouTube JSON metadata...\n")
 
-	cmd := exec.Command(
-		"yt-dlp",
+	jsonArgs := []string{
 		"--cookies", cookieFile,
 		"-j",
 		"--no-warnings",
-		"https://www.youtube.com/watch?v="+youtubeID,
-	)
+	}
+
+	if poToken := getPOToken(cookieFile); poToken != "" {
+		jsonArgs = append(jsonArgs, "--extractor-args", "youtube:po_token="+poToken)
+	}
+
+	jsonArgs = append(jsonArgs, "https://www.youtube.com/watch?v="+youtubeID)
+	cmd := exec.Command("yt-dlp", jsonArgs...)
 
 	output, err := cmd.Output()
 	if err != nil {

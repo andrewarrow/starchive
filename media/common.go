@@ -1,10 +1,15 @@
 package media
 
 import (
+	"bufio"
+	"crypto/sha1"
 	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
+	"strings"
+	"time"
 )
 
 func ParseVideoInput(input string) (string, string) {
@@ -96,4 +101,55 @@ func EnsureWav(videoID string) error {
 	}
 
 	return nil
+}
+
+func extractSAPISID(cookieFile string) (string, error) {
+	file, err := os.Open(cookieFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to open cookie file: %v", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		}
+		
+		parts := strings.Split(line, "\t")
+		if len(parts) >= 7 {
+			cookieName := parts[5]
+			cookieValue := parts[6]
+			
+			if cookieName == "SAPISID" || cookieName == "__Secure-3PAPISID" {
+				return cookieValue, nil
+			}
+		}
+	}
+	
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading cookie file: %v", err)
+	}
+	
+	return "", fmt.Errorf("SAPISID not found in cookies")
+}
+
+func generatePOToken(sapisid string) string {
+	timestamp := time.Now().Unix()
+	timestampStr := strconv.FormatInt(timestamp, 10)
+	
+	hashInput := timestampStr + " " + sapisid + " https://www.youtube.com"
+	hash := sha1.Sum([]byte(hashInput))
+	hashHex := fmt.Sprintf("%x", hash)
+	
+	return timestampStr + "_" + hashHex
+}
+
+func getPOToken(cookieFile string) string {
+	sapisid, err := extractSAPISID(cookieFile)
+	if err != nil {
+		return ""
+	}
+	return generatePOToken(sapisid)
 }
