@@ -149,7 +149,18 @@ func generatePOToken(sapisid string) string {
 func getPOToken(cookieFile string) string {
 	sapisid, err := extractSAPISID(cookieFile)
 	if err != nil {
+		fmt.Printf("Debug: Failed to extract SAPISID: %v\n", err)
 		return ""
 	}
-	return generatePOToken(sapisid)
+	fmt.Printf("Debug: Extracted SAPISID: %s\n", sapisid)
+	
+	poToken := generatePOToken(sapisid)
+	fmt.Printf("Debug: Generated raw PO token: %s\n", poToken)
+	
+	// Format as CLIENT.CONTEXT+TOKEN for yt-dlp
+	// Use web.gvs for video downloads and web.subs for subtitles
+	formattedToken := fmt.Sprintf("web.gvs+%s,web.subs+%s", poToken, poToken)
+	fmt.Printf("Debug: Formatted PO token: %s\n", formattedToken)
+	
+	return formattedToken
 }
