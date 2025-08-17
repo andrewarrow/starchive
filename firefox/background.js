@@ -193,6 +193,32 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return true;
   }
+  
+  if (msg.type === "sendPOToken") {
+    console.log('[Starchive] Received PO token from content script:', msg.poToken.substring(0, 20) + '...');
+    
+    // Send PO token to backend
+    fetch("http://localhost:3009/po-token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ 
+        poToken: msg.poToken, 
+        timestamp: msg.timestamp,
+        source: 'extension'
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      console.log('[Starchive] PO token sent to backend:', data);
+    })
+    .catch(err => {
+      console.error('[Starchive] Error sending PO token to backend:', err);
+    });
+    
+    return true;
+  }
 });
 
 // Handle toolbar button clicks

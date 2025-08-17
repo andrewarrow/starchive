@@ -3,7 +3,10 @@ package media
 import (
 	"bufio"
 	"crypto/sha1"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -146,7 +149,48 @@ func generatePOToken(sapisid string) string {
 	return timestampStr + "_" + hashHex
 }
 
+func getStoredPOTokenFromServer() string {
+	resp, err := http.Get("http://localhost:3009/po-token")
+	if err != nil {
+		fmt.Printf("Debug: Failed to get PO token from server: %v\n", err)
+		return ""
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Debug: Failed to read PO token response: %v\n", err)
+		return ""
+	}
+	
+	var response struct {
+		POToken string `json:"poToken"`
+	}
+	
+	if err := json.Unmarshal(body, &response); err != nil {
+		fmt.Printf("Debug: Failed to parse PO token response: %v\n", err)
+		return ""
+	}
+	
+	return response.POToken
+}
+
 func getPOToken(cookieFile string) string {
+	// First try to get PO token from extension via server
+	if storedToken := getStoredPOTokenFromServer(); storedToken != "" {
+		fmt.Printf("Debug: Using PO token from extension: %s...\n", storedToken[:20])
+		// Format the stored token for yt-dlp (assuming it's already base64url encoded)
+		formattedToken := fmt.Sprintf("web.gvs+%s,web.subs+%s", storedToken, storedToken)
+		fmt.Printf("Debug: Formatted stored PO token: %s...\n", formattedToken[:50])
+		return formattedToken
+	}
+	
+	fmt.Printf("Debug: No stored PO token available, trying SAPISID method...\n")
+	
 	sapisid, err := extractSAPISID(cookieFile)
 	if err != nil {
 		fmt.Printf("Debug: Failed to extract SAPISID: %v\n", err)
@@ -160,7 +204,7 @@ func getPOToken(cookieFile string) string {
 	// Format as CLIENT.CONTEXT+TOKEN for yt-dlp
 	// Use web.gvs for video downloads and web.subs for subtitles
 	formattedToken := fmt.Sprintf("web.gvs+%s,web.subs+%s", poToken, poToken)
-	fmt.Printf("Debug: Formatted PO token: %s\n", formattedToken)
+	fmt.Printf("Debug: Formatted generated PO token: %s\n", formattedToken)
 	
 	return formattedToken
 }

@@ -9,7 +9,51 @@ function checkForYouTubeVideo() {
         videoId: videoId 
       });
     }
+    
+    // Also extract PO token from YouTube page
+    extractAndSendPOToken();
   }
+}
+
+function extractAndSendPOToken() {
+  console.log('[Starchive] Attempting to extract PO token from YouTube page');
+  
+  // Method 1: Try to find PO token in script tags
+  const scripts = document.getElementsByTagName('script');
+  for (let script of scripts) {
+    if (script.textContent && script.textContent.includes('poToken')) {
+      const poTokenMatch = script.textContent.match(/['""]poToken['""]:\s*['""]([^'""]+)['""][,}]/);
+      if (poTokenMatch && poTokenMatch[1]) {
+        console.log('[Starchive] Found PO token in script:', poTokenMatch[1]);
+        sendPOTokenToBackend(poTokenMatch[1]);
+        return;
+      }
+    }
+  }
+  
+  // Method 2: Try to intercept network requests for PO token
+  if (window.ytInitialData) {
+    console.log('[Starchive] Found ytInitialData, searching for PO token...');
+    const jsonStr = JSON.stringify(window.ytInitialData);
+    const poTokenMatch = jsonStr.match(/['""]poToken['""]:\s*['""]([^'""]+)['""][,}]/);
+    if (poTokenMatch && poTokenMatch[1]) {
+      console.log('[Starchive] Found PO token in ytInitialData:', poTokenMatch[1]);
+      sendPOTokenToBackend(poTokenMatch[1]);
+      return;
+    }
+  }
+  
+  console.log('[Starchive] No PO token found in current page');
+}
+
+function sendPOTokenToBackend(poToken) {
+  console.log('[Starchive] Sending PO token to backend:', poToken.substring(0, 20) + '...');
+  
+  browser.runtime.sendMessage({
+    type: "sendPOToken",
+    poToken: poToken,
+    timestamp: Date.now()
+  });
 }
 
 function checkForInstagramPost() {

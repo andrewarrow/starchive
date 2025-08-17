@@ -7,6 +7,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
+)
+
+var (
+	storedPOToken string
+	poTokenMutex  sync.RWMutex
+	poTokenTime   time.Time
 )
 
 // WriteCookiesFile creates a Netscape format cookies file for a specific platform
@@ -57,6 +65,7 @@ func SetupRoutes(downloadQueue interface{}) {
 	http.HandleFunc("/get-txt", func(w http.ResponseWriter, r *http.Request) {
 		handleGetTxt(w, r, downloadQueue)
 	})
+	http.HandleFunc("/po-token", handlePOToken)
 	http.HandleFunc("/data", handleData)
 	http.HandleFunc("/", handleStatic)
 }
@@ -387,4 +396,88 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 		fmt.Printf("[Starchive] Download queue not available\n")
 		http.Error(w, "Download queue not available", http.StatusInternalServerError)
 	}
+}
+
+func handlePOToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		// Handle GET request to retrieve current PO token
+		poTokenMutex.RLock()
+		token := storedPOToken
+		tokenTime := poTokenTime
+		poTokenMutex.RUnlock()
+		
+		w.Header().Set("Content-Type", "application/json")
+		
+		// Return empty if token is older than 1 hour
+		if time.Since(tokenTime) > time.Hour {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"poToken": "",
+				"message": "No valid PO token available",
+			})
+			return
+		}
+		
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"poToken":   token,
+			"timestamp": tokenTime.Unix(),
+		})
+		return
+	}
+	
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var req struct {
+		POToken   string `json:"poToken"`
+		Timestamp int64  `json:"timestamp"`
+		Source    string `json:"source"`
+	}
+
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.POToken == "" {
+		http.Error(w, "PO token is required", http.StatusBadRequest)
+		return
+	}
+
+	// Store the PO token
+	poTokenMutex.Lock()
+	storedPOToken = req.POToken
+	poTokenTime = time.Now()
+	poTokenMutex.Unlock()
+
+	fmt.Printf("PO token received from %s: %s... (timestamp: %d)\n", 
+		req.Source, req.POToken[:20], req.Timestamp)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    "success",
+		"message":   "PO token stored successfully",
+		"timestamp": time.Now().Unix(),
+	})
+}
+
+// GetStoredPOToken returns the most recently stored PO token if it's fresh (less than 1 hour old)
+func GetStoredPOToken() string {
+	poTokenMutex.RLock()
+	defer poTokenMutex.RUnlock()
+	
+	// Return empty if token is older than 1 hour
+	if time.Since(poTokenTime) > time.Hour {
+		return ""
+	}
+	
+	return storedPOToken
 }
