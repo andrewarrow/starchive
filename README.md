@@ -75,7 +75,7 @@ Commands:
 5. **Start blending**: `./starchive blend` for interactive audio mixing
 
 ### Configuration
-- **Data Storage**: Files saved to `./data/` and `./data2/` directories
+- **Data Storage**: Files saved to `./data/` directory
 - **Download Options**: Use `--download-videos=false` to skip video files
 - **Cookies**: Place `cookies.txt` in root for private video access
 

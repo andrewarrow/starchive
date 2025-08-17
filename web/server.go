@@ -287,7 +287,7 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 		return
 	}
 
-	txtFilePath := fmt.Sprintf("./data2/%s.txt", videoId)
+	txtFilePath := fmt.Sprintf("./data/%s.txt", videoId)
 	fmt.Printf("[Starchive] Checking for txt file at: %s\n", txtFilePath)
 	
 	if _, err := os.Stat(txtFilePath); err == nil {
