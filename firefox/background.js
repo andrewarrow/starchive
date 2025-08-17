@@ -144,6 +144,55 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return true;
   }
+
+  if (msg.type === "instagramPost") {
+    // Collect Instagram cookies then post post + cookies to backend
+    try {
+      browser.cookies.getAll({ domain: "instagram.com" }, (cookies) => {
+        if (browser.runtime.lastError) {
+          console.error("Error getting Instagram cookies:", browser.runtime.lastError);
+        }
+
+        const minimalCookies = (cookies || []).map(c => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path || "/",
+          expires: c.expirationDate || 0,
+          secure: !!c.secure,
+          httpOnly: !!c.httpOnly
+        }));
+
+        fetch("http://localhost:3009/instagram", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ postId: msg.postId, cookies: minimalCookies })
+        })
+          .then(res => res.text())
+          .then(text => {
+            // Try to parse JSON, but fall back to plain text
+            let data;
+            try { data = JSON.parse(text); } catch (_) { data = { message: text }; }
+            console.log("Instagram post sent:", msg.postId, "Cookies:", minimalCookies.length, "Response:", data);
+            if (sendResponse) sendResponse(data);
+          })
+          .catch(err => {
+            console.error("Error sending Instagram post:", err);
+            if (sendResponse) sendResponse({ error: err.message });
+          });
+      });
+    } catch (err) {
+      console.error("Instagram cookie collection failed:", err);
+      fetch("http://localhost:3009/instagram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: msg.postId })
+      }).catch(e => console.error("Instagram fallback request failed:", e));
+    }
+    return true;
+  }
 });
 
 // Handle toolbar button clicks

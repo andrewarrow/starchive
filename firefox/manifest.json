@@ -7,7 +7,8 @@
   ],
   "host_permissions": [
     "http://localhost:3009/*",
-    "https://*.youtube.com/*"
+    "https://*.youtube.com/*",
+    "https://*.instagram.com/*"
   ],
   "background": {
     "scripts": ["background.js"]

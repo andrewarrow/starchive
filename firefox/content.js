@@ -12,6 +12,19 @@ function checkForYouTubeVideo() {
   }
 }
 
+function checkForInstagramPost() {
+  if (window.location.hostname === 'www.instagram.com' || window.location.hostname === 'instagram.com') {
+    const pathMatch = window.location.pathname.match(/\/p\/([^\/]+)\//);
+    if (pathMatch) {
+      const postId = pathMatch[1];
+      browser.runtime.sendMessage({ 
+        type: "instagramPost", 
+        postId: postId 
+      });
+    }
+  }
+}
+
 function setupHoverDetection() {
   if (window.location.hostname === 'www.youtube.com' || window.location.hostname === 'youtube.com') {
     console.log('[Starchive] Setting up hover detection on YouTube');
@@ -393,6 +406,7 @@ function showTooltip(element, message, isSuccess) {
 
 console.log('[Starchive] Content script loaded on:', window.location.href);
 checkForYouTubeVideo();
+checkForInstagramPost();
 setupHoverDetection();
 
 let lastUrl = window.location.href;
@@ -401,6 +415,7 @@ const observer = new MutationObserver(() => {
     console.log('[Starchive] URL changed from', lastUrl, 'to', window.location.href);
     lastUrl = window.location.href;
     checkForYouTubeVideo();
+    checkForInstagramPost();
     setupHoverDetection();
   }
 });
