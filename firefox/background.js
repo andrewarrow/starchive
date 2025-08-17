@@ -1,6 +1,6 @@
 console.log('[Starchive] Background script loaded');
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log('[Starchive] Received message:', msg.type, msg);
   
   if (msg.type === "fetchData") {
@@ -16,6 +16,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   
   if (msg.type === "requestTxt") {
     console.log(`[Starchive] Requesting txt for video ID: ${msg.videoId}`);
+    console.log(`[Starchive] sendResponse function available:`, typeof sendResponse);
+    
     fetch(`http://localhost:3009/get-txt?id=${msg.videoId}`)
       .then(res => {
         console.log(`[Starchive] Response status for ${msg.videoId}:`, res.status);
@@ -27,19 +29,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // Check if the response contains actual transcript content or just a status message
         const hasContent = !text.includes('Download started for video') && !text.includes('already in download queue') && text.length > 50;
         
-        sendResponse({
+        console.log(`[Starchive] About to send response - hasContent: ${hasContent}, videoId: ${msg.videoId}`);
+        
+        const responseObj = {
           hasContent: hasContent,
           content: hasContent ? text : null,
           videoId: msg.videoId
-        });
+        };
+        
+        console.log(`[Starchive] Sending response object:`, responseObj);
+        sendResponse(responseObj);
+        console.log(`[Starchive] Response sent for ${msg.videoId}`);
       })
       .catch(err => {
         console.error(`[Starchive] Error getting txt for ${msg.videoId}:`, err);
-        sendResponse({
+        const errorResponse = {
           hasContent: false,
           error: err.message,
           videoId: msg.videoId
-        });
+        };
+        console.log(`[Starchive] Sending error response:`, errorResponse);
+        sendResponse(errorResponse);
+        console.log(`[Starchive] Error response sent for ${msg.videoId}`);
       });
     return true;
   }
@@ -47,9 +58,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "youtubeVideo") {
     // Collect YouTube cookies then post video + cookies to backend
     try {
-      chrome.cookies.getAll({ domain: "youtube.com" }, (cookies) => {
-        if (chrome.runtime.lastError) {
-          console.error("Error getting cookies:", chrome.runtime.lastError);
+      browser.cookies.getAll({ domain: "youtube.com" }, (cookies) => {
+        if (browser.runtime.lastError) {
+          console.error("Error getting cookies:", browser.runtime.lastError);
         }
 
         const minimalCookies = (cookies || []).map(c => ({

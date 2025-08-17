@@ -1,5 +1,5 @@
 document.getElementById('fetchButton').addEventListener('click', () => {
-  chrome.runtime.sendMessage({ type: "fetchData" }, (response) => {
+  browser.runtime.sendMessage({ type: "fetchData" }, (response) => {
     const resultDiv = document.getElementById('result');
     if (response && response.error) {
       resultDiv.textContent = `Error: ${response.error}`;

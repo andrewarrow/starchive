@@ -4,7 +4,7 @@ function checkForYouTubeVideo() {
     const videoId = urlParams.get('v');
     
     if (videoId && window.location.pathname === '/watch') {
-      chrome.runtime.sendMessage({ 
+      browser.runtime.sendMessage({ 
         type: "youtubeVideo", 
         videoId: videoId 
       });
@@ -30,11 +30,10 @@ function handleMouseOver(event) {
     if (match) {
       const videoId = match[1];
       console.log('[Starchive] Extracted video ID:', videoId);
-      chrome.runtime.sendMessage({
+      browser.runtime.sendMessage({
         type: "requestTxt",
-        videoId: videoId,
-        element: target
-      }, (response) => {
+        videoId: videoId
+      }).then((response) => {
         console.log('[Starchive] Got response for', videoId, ':', response);
         if (response) {
           console.log('[Starchive] Response hasContent:', response.hasContent, 'for video:', videoId);
@@ -42,6 +41,8 @@ function handleMouseOver(event) {
         } else {
           console.log('[Starchive] No response received for', videoId);
         }
+      }).catch((error) => {
+        console.log('[Starchive] Error sending message for', videoId, ':', error);
       });
     } else {
       console.log('[Starchive] No video ID found in href:', href);
@@ -154,4 +155,4 @@ const observer = new MutationObserver(() => {
 
 observer.observe(document, { subtree: true, childList: true });
 
-chrome.runtime.sendMessage({ type: "fetchData" });
+browser.runtime.sendMessage({ type: "fetchData" });
