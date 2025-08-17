@@ -39,12 +39,16 @@ function handleMouseOver(event) {
           console.log('[Starchive] Response hasContent:', response.hasContent, 'for video:', videoId);
           showVisualFeedback(target, response.hasContent, videoId);
           
-          // Show copy button for available transcripts
+          // Store transcript content for toolbar button
           if (response.hasContent && response.content) {
-            console.log('[Starchive] Showing copy button for', videoId, 'content length:', response.content.length);
-            showCopyButton(target, response.content, videoId);
+            console.log('[Starchive] Storing transcript for', videoId, 'content length:', response.content.length);
+            browser.runtime.sendMessage({
+              type: "storeTranscript",
+              videoId: videoId,
+              content: response.content
+            });
           } else {
-            console.log('[Starchive] No copy button - hasContent:', response.hasContent, 'content length:', response.content ? response.content.length : 'null');
+            console.log('[Starchive] No transcript to store - hasContent:', response.hasContent, 'content length:', response.content ? response.content.length : 'null');
           }
         } else {
           console.log('[Starchive] No response received for', videoId);
@@ -231,7 +235,7 @@ function showCopyButton(element, content, videoId) {
     justify-content: center;
     font-size: 16px;
     cursor: pointer;
-    z-index: 10002;
+    z-index: 99999;
     opacity: 0;
     transition: all 0.3s ease;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -240,9 +244,15 @@ function showCopyButton(element, content, videoId) {
   
   // Position button on thumbnail
   const rect = thumbnail.getBoundingClientRect();
-  copyButton.style.position = 'fixed';
+  copyButton.style.position = 'absolute';
   copyButton.style.left = (rect.right - 40 + window.scrollX) + 'px';
   copyButton.style.top = (rect.top + 8 + window.scrollY) + 'px';
+  
+  console.log('[Starchive] Copy button positioned at:', { 
+    left: rect.right - 40 + window.scrollX, 
+    top: rect.top + 8 + window.scrollY, 
+    thumbnailRect: rect 
+  });
   
   // Add click handler with proper user activation
   copyButton.addEventListener('click', (e) => {
@@ -277,11 +287,13 @@ function showCopyButton(element, content, videoId) {
   });
   
   document.body.appendChild(copyButton);
+  console.log('[Starchive] Copy button added to DOM');
   
   // Fade in
   setTimeout(() => {
     copyButton.style.opacity = '1';
     copyButton.style.transform = 'scale(1.1)';
+    console.log('[Starchive] Copy button faded in');
     setTimeout(() => copyButton.style.transform = 'scale(1)', 200);
   }, 100);
   

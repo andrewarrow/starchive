@@ -1,5 +1,8 @@
 console.log('[Starchive] Background script loaded');
 
+// Store for transcript content
+let storedTranscripts = {};
+
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log('[Starchive] Received message:', msg.type, msg);
   
@@ -53,6 +56,16 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   
+  if (msg.type === "storeTranscript") {
+    console.log(`[Starchive] Storing transcript for ${msg.videoId}, length: ${msg.content.length}`);
+    storedTranscripts[msg.videoId] = {
+      content: msg.content,
+      timestamp: Date.now()
+    };
+    console.log(`[Starchive] Stored transcripts count: ${Object.keys(storedTranscripts).length}`);
+    return true;
+  }
+  
   if (msg.type === "youtubeVideo") {
     // Collect YouTube cookies then post video + cookies to backend
     try {
@@ -101,4 +114,47 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return true;
   }
+});
+
+// Handle toolbar button clicks
+browser.browserAction.onClicked.addListener((tab) => {
+  console.log('[Starchive] Toolbar button clicked, checking for stored transcripts');
+  
+  if (Object.keys(storedTranscripts).length === 0) {
+    console.log('[Starchive] No stored transcripts available');
+    browser.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon.png',
+      title: 'Starchive',
+      message: 'No transcript available. Hover over a YouTube video with a transcript first.'
+    });
+    return;
+  }
+  
+  // Get the most recently stored transcript
+  const sortedTranscripts = Object.entries(storedTranscripts)
+    .sort((a, b) => b[1].timestamp - a[1].timestamp);
+  
+  const [videoId, transcriptData] = sortedTranscripts[0];
+  
+  console.log(`[Starchive] Copying transcript for ${videoId} to clipboard, length: ${transcriptData.content.length}`);
+  
+  // Copy to clipboard
+  navigator.clipboard.writeText(transcriptData.content).then(() => {
+    console.log('[Starchive] Transcript copied to clipboard via toolbar button');
+    browser.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon.png',
+      title: 'Starchive',
+      message: `📋 Transcript for ${videoId} copied to clipboard! (${transcriptData.content.length} chars)`
+    });
+  }).catch(err => {
+    console.error('[Starchive] Failed to copy via toolbar button:', err);
+    browser.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon.png', 
+      title: 'Starchive',
+      message: '❌ Failed to copy transcript to clipboard'
+    });
+  });
 });
