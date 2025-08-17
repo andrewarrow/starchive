@@ -75,6 +75,7 @@ func SetupRoutes(downloadQueue interface{}) {
 	http.HandleFunc("/get-txt", func(w http.ResponseWriter, r *http.Request) {
 		handleGetTxt(w, r, downloadQueue)
 	})
+	http.HandleFunc("/data", handleData)
 	http.HandleFunc("/", handleStatic)
 }
 
@@ -215,6 +216,29 @@ func handleYouTube(w http.ResponseWriter, r *http.Request, downloadQueue interfa
 		fmt.Fprintf(w, "Video %s added to download queue. Queue length: %d, Processing: %t", id, queueLength, isRunning)
 	} else {
 		http.Error(w, "Download queue not available", http.StatusInternalServerError)
+	}
+}
+
+func handleData(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[Starchive] GET /data request received\n")
+	
+	if r.Method != http.MethodGet {
+		fmt.Printf("[Starchive] Wrong method for /data: %s\n", r.Method)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"status": "ok",
+		"message": "Starchive server is running",
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Printf("[Starchive] Error encoding /data response: %v\n", err)
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	} else {
+		fmt.Printf("[Starchive] /data response sent successfully\n")
 	}
 }
 
