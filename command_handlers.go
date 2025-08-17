@@ -489,3 +489,41 @@ func handleExternalCommand() {
 	fmt.Printf("Title: %s\n", title)
 	fmt.Printf("File: %s\n", destPath)
 }
+
+func handleUlCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive ul <id>")
+		fmt.Println("Example: starchive ul abc123")
+		fmt.Println("This will upload the mp4 file with the given ID to YouTube")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	
+	mp4Path := fmt.Sprintf("./data/%s.mp4", id)
+	if _, err := os.Stat(mp4Path); os.IsNotExist(err) {
+		fmt.Printf("Error: MP4 file %s does not exist\n", mp4Path)
+		os.Exit(1)
+	}
+
+	uploadScript := "./media/upload_to_youtube.py"
+	if _, err := os.Stat(uploadScript); os.IsNotExist(err) {
+		fmt.Printf("Error: Upload script %s does not exist\n", uploadScript)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Uploading %s to YouTube...\n", mp4Path)
+	
+	cmd := exec.Command("python3", uploadScript, mp4Path, "--title", id)
+	cmd.Dir = "."
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	
+	err := cmd.Run()
+	if err != nil {
+		fmt.Printf("Error uploading to YouTube: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully uploaded %s to YouTube\n", id)
+}
