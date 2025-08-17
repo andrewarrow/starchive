@@ -514,12 +514,18 @@ func handleUlCommand() {
 
 	fmt.Printf("Uploading %s to YouTube...\n", mp4Path)
 	
-	cmd := exec.Command("python3", uploadScript, mp4Path, "--title", id)
-	cmd.Dir = "."
+	absMP4Path, err := filepath.Abs(mp4Path)
+	if err != nil {
+		fmt.Printf("Error getting absolute path for mp4: %v\n", err)
+		os.Exit(1)
+	}
+	
+	cmd := exec.Command("python3", "upload_to_youtube.py", absMP4Path, "--title", id)
+	cmd.Dir = "./media"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		fmt.Printf("Error uploading to YouTube: %v\n", err)
 		os.Exit(1)
