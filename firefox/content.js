@@ -39,9 +39,12 @@ function handleMouseOver(event) {
           console.log('[Starchive] Response hasContent:', response.hasContent, 'for video:', videoId);
           showVisualFeedback(target, response.hasContent, videoId);
           
-          // Copy transcript to clipboard if available
+          // Show copy button for available transcripts
           if (response.hasContent && response.content) {
-            copyToClipboard(response.content, videoId);
+            console.log('[Starchive] Showing copy button for', videoId, 'content length:', response.content.length);
+            showCopyButton(target, response.content, videoId);
+          } else {
+            console.log('[Starchive] No copy button - hasContent:', response.hasContent, 'content length:', response.content ? response.content.length : 'null');
           }
         } else {
           console.log('[Starchive] No response received for', videoId);
@@ -131,7 +134,8 @@ function showVisualFeedback(element, hasContent, videoId) {
 }
 
 function copyToClipboard(content, videoId) {
-  console.log('[Starchive] Copying transcript to clipboard for', videoId);
+  console.log('[Starchive] Copying transcript to clipboard for', videoId, 'content preview:', content.substring(0, 100) + '...');
+  console.log('[Starchive] Content type:', typeof content, 'length:', content.length);
   
   navigator.clipboard.writeText(content).then(() => {
     console.log('[Starchive] Transcript copied to clipboard successfully for', videoId);
@@ -188,6 +192,141 @@ function copyToClipboard(content, videoId) {
     
     document.body.removeChild(textArea);
   });
+}
+
+function showCopyButton(element, content, videoId) {
+  console.log('[Starchive] Creating copy button for', videoId);
+  
+  // Find thumbnail for positioning
+  let thumbnail = element.querySelector('img, yt-image img, ytd-thumbnail img');
+  if (!thumbnail) {
+    const parentContainer = element.closest('ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer');
+    if (parentContainer) {
+      thumbnail = parentContainer.querySelector('img, yt-image img, ytd-thumbnail img');
+    }
+  }
+  if (!thumbnail && element.parentNode) {
+    thumbnail = element.parentNode.querySelector('img, yt-image img, ytd-thumbnail img');
+  }
+  
+  if (!thumbnail) {
+    console.log('[Starchive] No thumbnail found for copy button');
+    return;
+  }
+  
+  // Create copy button
+  const copyButton = document.createElement('div');
+  copyButton.innerHTML = '📋';
+  copyButton.style.cssText = `
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    background: rgba(76, 175, 80, 0.9);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 10002;
+    opacity: 0;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    user-select: none;
+  `;
+  
+  // Position button on thumbnail
+  const rect = thumbnail.getBoundingClientRect();
+  copyButton.style.position = 'fixed';
+  copyButton.style.left = (rect.right - 40 + window.scrollX) + 'px';
+  copyButton.style.top = (rect.top + 8 + window.scrollY) + 'px';
+  
+  // Add click handler with proper user activation
+  copyButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('[Starchive] Copy button clicked for', videoId);
+    
+    navigator.clipboard.writeText(content).then(() => {
+      console.log('[Starchive] Transcript copied successfully via button click');
+      
+      // Show success feedback
+      copyButton.innerHTML = '✓';
+      copyButton.style.background = 'rgba(46, 125, 50, 0.9)';
+      
+      showCopyNotification();
+      
+      setTimeout(() => {
+        copyButton.innerHTML = '📋';
+        copyButton.style.background = 'rgba(76, 175, 80, 0.9)';
+      }, 1000);
+      
+    }).catch(err => {
+      console.error('[Starchive] Button click copy failed:', err);
+      copyButton.innerHTML = '❌';
+      copyButton.style.background = 'rgba(244, 67, 54, 0.9)';
+      
+      setTimeout(() => {
+        copyButton.innerHTML = '📋';
+        copyButton.style.background = 'rgba(76, 175, 80, 0.9)';
+      }, 1000);
+    });
+  });
+  
+  document.body.appendChild(copyButton);
+  
+  // Fade in
+  setTimeout(() => {
+    copyButton.style.opacity = '1';
+    copyButton.style.transform = 'scale(1.1)';
+    setTimeout(() => copyButton.style.transform = 'scale(1)', 200);
+  }, 100);
+  
+  // Auto-remove after delay
+  setTimeout(() => {
+    copyButton.style.opacity = '0';
+    setTimeout(() => {
+      if (copyButton.parentNode) {
+        copyButton.parentNode.removeChild(copyButton);
+      }
+    }, 300);
+  }, 3000);
+}
+
+function showCopyNotification() {
+  const notification = document.createElement('div');
+  notification.textContent = '📋 Transcript copied to clipboard!';
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4CAF50;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    z-index: 10003;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => notification.style.opacity = '1', 10);
+  
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 2500);
 }
 
 function showTooltip(element, message, isSuccess) {
