@@ -3,4 +3,6 @@ data
 cookies.txt
 cookies_instagram.txt
 client_secret.json
+token.pickle
+cookies_youtube.txt
 .DS_Store
