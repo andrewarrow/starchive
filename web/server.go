@@ -246,38 +246,53 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interface{}) {
+	fmt.Printf("[Starchive] GET /get-txt request received\n")
+	
 	if r.Method != http.MethodGet {
+		fmt.Printf("[Starchive] Wrong method: %s\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	videoId := r.URL.Query().Get("id")
+	fmt.Printf("[Starchive] Requested video ID: %s\n", videoId)
+	
 	if videoId == "" {
+		fmt.Printf("[Starchive] No video ID provided\n")
 		http.Error(w, "Video ID is required", http.StatusBadRequest)
 		return
 	}
 
 	txtFilePath := fmt.Sprintf("./data2/%s.txt", videoId)
+	fmt.Printf("[Starchive] Checking for txt file at: %s\n", txtFilePath)
 	
 	if _, err := os.Stat(txtFilePath); err == nil {
+		fmt.Printf("[Starchive] Txt file exists, serving content\n")
 		content, err := os.ReadFile(txtFilePath)
 		if err != nil {
+			fmt.Printf("[Starchive] Error reading txt file: %v\n", err)
 			http.Error(w, "Error reading txt file", http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write(content)
+		fmt.Printf("[Starchive] Served %d bytes for video %s\n", len(content), videoId)
 		return
 	}
 
+	fmt.Printf("[Starchive] Txt file not found, attempting to queue download\n")
+	
 	if queue, ok := downloadQueue.(*DownloadQueue); ok {
 		added := queue.AddToQueue(videoId)
 		if added {
+			fmt.Printf("[Starchive] Added video %s to download queue\n", videoId)
 			fmt.Fprintf(w, "Download started for video %s", videoId)
 		} else {
+			fmt.Printf("[Starchive] Video %s already in queue\n", videoId)
 			fmt.Fprintf(w, "Video %s is already in download queue", videoId)
 		}
 	} else {
+		fmt.Printf("[Starchive] Download queue not available\n")
 		http.Error(w, "Download queue not available", http.StatusInternalServerError)
 	}
 }

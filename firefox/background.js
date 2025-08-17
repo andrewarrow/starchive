@@ -1,4 +1,8 @@
+console.log('[Starchive] Background script loaded');
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log('[Starchive] Received message:', msg.type, msg);
+  
   if (msg.type === "fetchData") {
     fetch("http://localhost:3009/data")
       .then(res => res.json())
@@ -11,13 +15,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   
   if (msg.type === "requestTxt") {
+    console.log(`[Starchive] Requesting txt for video ID: ${msg.videoId}`);
     fetch(`http://localhost:3009/get-txt?id=${msg.videoId}`)
-      .then(res => res.text())
+      .then(res => {
+        console.log(`[Starchive] Response status for ${msg.videoId}:`, res.status);
+        return res.text();
+      })
       .then(text => {
-        console.log(`Got txt for ${msg.videoId}:`, text);
+        console.log(`[Starchive] Got txt for ${msg.videoId}:`, text.substring(0, 100) + (text.length > 100 ? '...' : ''));
       })
       .catch(err => {
-        console.error(`Error getting txt for ${msg.videoId}:`, err);
+        console.error(`[Starchive] Error getting txt for ${msg.videoId}:`, err);
       });
     return true;
   }
