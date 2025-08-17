@@ -53,11 +53,27 @@ function handleMouseOver(event) {
 function showVisualFeedback(element, hasContent, videoId) {
   console.log('[Starchive] showVisualFeedback called with:', { element, hasContent, videoId });
   
-  const thumbnail = element.querySelector('img, yt-image img, ytd-thumbnail img');
+  // Try multiple ways to find the thumbnail
+  let thumbnail = element.querySelector('img, yt-image img, ytd-thumbnail img');
+  
+  // If not found in the current element, look in parent containers
+  if (!thumbnail) {
+    const parentContainer = element.closest('ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer');
+    if (parentContainer) {
+      thumbnail = parentContainer.querySelector('img, yt-image img, ytd-thumbnail img');
+    }
+  }
+  
+  // If still not found, try looking for thumbnail in siblings
+  if (!thumbnail && element.parentNode) {
+    thumbnail = element.parentNode.querySelector('img, yt-image img, ytd-thumbnail img');
+  }
+  
   if (!thumbnail) {
     console.log('[Starchive] No thumbnail found for', videoId, 'element:', element);
     console.log('[Starchive] Element HTML:', element.outerHTML.substring(0, 200));
-    return;
+    // Apply feedback to the element itself if no thumbnail found
+    thumbnail = element;
   }
 
   console.log('[Starchive] Found thumbnail:', thumbnail, 'for video:', videoId);
@@ -65,25 +81,45 @@ function showVisualFeedback(element, hasContent, videoId) {
   const color = hasContent ? '#00ff00' : '#ff0000';
   const message = hasContent ? 'Transcript available' : 'Transcript downloading';
   
-  console.log(`[Starchive] Applying ${hasContent ? 'GREEN' : 'RED'} visual feedback for ${videoId}`);
-  console.log('[Starchive] Color:', color, 'Message:', message);
+  console.log(`[Starchive] Creating ${hasContent ? 'GREEN' : 'RED'} overlay for ${videoId}`);
   
-  const originalBorder = thumbnail.style.border;
-  const originalBoxShadow = thumbnail.style.boxShadow;
+  // Create overlay element
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    border: 4px solid ${color};
+    box-shadow: 0 0 15px ${color}, inset 0 0 15px ${color};
+    pointer-events: none;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: ${color}22;
+  `;
   
-  console.log('[Starchive] Original styles - border:', originalBorder, 'boxShadow:', originalBoxShadow);
+  // Position overlay on thumbnail
+  const rect = thumbnail.getBoundingClientRect();
+  overlay.style.left = rect.left + 'px';
+  overlay.style.top = rect.top + 'px';
+  overlay.style.width = rect.width + 'px';
+  overlay.style.height = rect.height + 'px';
   
-  thumbnail.style.border = `3px solid ${color}`;
-  thumbnail.style.boxShadow = `0 0 10px ${color}`;
-  thumbnail.style.transition = 'all 0.3s ease';
+  document.body.appendChild(overlay);
+  console.log('[Starchive] Overlay created at position:', { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
   
-  console.log('[Starchive] Applied new styles - border:', thumbnail.style.border, 'boxShadow:', thumbnail.style.boxShadow);
+  // Fade in
+  setTimeout(() => {
+    overlay.style.opacity = '0.8';
+    console.log('[Starchive] Overlay faded in');
+  }, 10);
   
   setTimeout(() => {
-    console.log('[Starchive] Removing visual feedback for', videoId);
-    thumbnail.style.border = originalBorder;
-    thumbnail.style.boxShadow = originalBoxShadow;
-    console.log('[Starchive] Restored original styles for', videoId);
+    console.log('[Starchive] Removing overlay for', videoId);
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+    }, 300);
   }, 1500);
   
   showTooltip(element, message, hasContent);
