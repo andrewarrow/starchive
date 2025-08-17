@@ -66,8 +66,8 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   
-  if (msg.type === "copyStoredTranscript") {
-    console.log('[Starchive] Copy stored transcript request from popup');
+  if (msg.type === "getStoredTranscript") {
+    console.log('[Starchive] Get stored transcript request from popup');
     
     if (Object.keys(storedTranscripts).length === 0) {
       console.log('[Starchive] No stored transcripts available');
@@ -84,22 +84,13 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     
     const [videoId, transcriptData] = sortedTranscripts[0];
     
-    console.log(`[Starchive] Copying transcript for ${videoId} to clipboard, length: ${transcriptData.content.length}`);
+    console.log(`[Starchive] Returning transcript for ${videoId}, length: ${transcriptData.content.length}`);
     
-    // Copy to clipboard
-    navigator.clipboard.writeText(transcriptData.content).then(() => {
-      console.log('[Starchive] Transcript copied to clipboard via popup');
-      sendResponse({
-        success: true,
-        videoId: videoId,
-        length: transcriptData.content.length
-      });
-    }).catch(err => {
-      console.error('[Starchive] Failed to copy via popup:', err);
-      sendResponse({
-        success: false,
-        error: 'Failed to copy to clipboard'
-      });
+    sendResponse({
+      success: true,
+      videoId: videoId,
+      content: transcriptData.content,
+      length: transcriptData.content.length
     });
     
     return true;
