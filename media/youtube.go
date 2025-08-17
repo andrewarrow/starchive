@@ -22,7 +22,7 @@ func DownloadYouTube(youtubeID string) (string, error) {
 
 	// Get YouTube cookie file
 	cookieFile := GetCookieFile("youtube")
-	
+
 	// Download metadata first
 	DownloadYouTubeSubtitles(youtubeID, cookieFile)
 	DownloadYouTubeThumbnail(youtubeID, cookieFile)
@@ -72,12 +72,12 @@ func DownloadYouTubeSubtitles(youtubeID, cookieFile string) error {
 	// Retry with exponential backoff up to 50 times
 	var lastErr error
 	for attempt := 1; attempt <= 1; attempt++ {
-		subArgs := []string{"--cookies", cookieFile, "-o", "./data/" + youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en"}
-		
+		subArgs := []string{"--cookies", cookieFile, "-o", "./data/" + youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", "--convert-subs", "vtt"}
+
 		if poToken := getPOToken(cookieFile); poToken != "" {
 			subArgs = append(subArgs, "--extractor-args", "youtube:po_token="+poToken)
 		}
-		
+
 		subArgs = append(subArgs, youtubeURL)
 		subCmd := exec.Command("yt-dlp", subArgs...)
 		subCmd.Stdout = os.Stdout
