@@ -14,9 +14,10 @@ function checkForYouTubeVideo() {
 
 function checkForInstagramPost() {
   if (window.location.hostname === 'www.instagram.com' || window.location.hostname === 'instagram.com') {
-    const pathMatch = window.location.pathname.match(/\/p\/([^\/]+)\//);
+    // Match both posts (/p/) and reels (/reels/)
+    const pathMatch = window.location.pathname.match(/\/(p|reels)\/([^\/]+)\//);
     if (pathMatch) {
-      const postId = pathMatch[1];
+      const postId = pathMatch[2];
       browser.runtime.sendMessage({ 
         type: "instagramPost", 
         postId: postId 
