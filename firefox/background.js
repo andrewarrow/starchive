@@ -23,9 +23,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .then(text => {
         console.log(`[Starchive] Got txt for ${msg.videoId}:`, text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+        
+        // Check if the response contains actual transcript content or just a status message
+        const hasContent = !text.includes('Download started for video') && !text.includes('already in download queue') && text.length > 50;
+        
+        sendResponse({
+          hasContent: hasContent,
+          content: hasContent ? text : null,
+          videoId: msg.videoId
+        });
       })
       .catch(err => {
         console.error(`[Starchive] Error getting txt for ${msg.videoId}:`, err);
+        sendResponse({
+          hasContent: false,
+          error: err.message,
+          videoId: msg.videoId
+        });
       });
     return true;
   }

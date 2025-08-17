@@ -32,12 +32,81 @@ function handleMouseOver(event) {
       console.log('[Starchive] Extracted video ID:', videoId);
       chrome.runtime.sendMessage({
         type: "requestTxt",
-        videoId: videoId
+        videoId: videoId,
+        element: target
+      }, (response) => {
+        if (response) {
+          showVisualFeedback(target, response.hasContent, videoId);
+        }
       });
     } else {
       console.log('[Starchive] No video ID found in href:', href);
     }
   }
+}
+
+function showVisualFeedback(element, hasContent, videoId) {
+  const thumbnail = element.querySelector('img, yt-image img, ytd-thumbnail img');
+  if (!thumbnail) {
+    console.log('[Starchive] No thumbnail found for', videoId);
+    return;
+  }
+
+  const color = hasContent ? '#00ff00' : '#ff0000';
+  const message = hasContent ? 'Transcript available' : 'Transcript downloading';
+  
+  console.log(`[Starchive] Showing ${hasContent ? 'green' : 'red'} feedback for ${videoId}`);
+  
+  const originalBorder = thumbnail.style.border;
+  const originalBoxShadow = thumbnail.style.boxShadow;
+  
+  thumbnail.style.border = `3px solid ${color}`;
+  thumbnail.style.boxShadow = `0 0 10px ${color}`;
+  thumbnail.style.transition = 'all 0.3s ease';
+  
+  setTimeout(() => {
+    thumbnail.style.border = originalBorder;
+    thumbnail.style.boxShadow = originalBoxShadow;
+  }, 1500);
+  
+  showTooltip(element, message, hasContent);
+}
+
+function showTooltip(element, message, isSuccess) {
+  const tooltip = document.createElement('div');
+  tooltip.textContent = message;
+  tooltip.style.cssText = `
+    position: absolute;
+    background: ${isSuccess ? '#4CAF50' : '#FF5722'};
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    z-index: 10000;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  `;
+  
+  document.body.appendChild(tooltip);
+  
+  const rect = element.getBoundingClientRect();
+  tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+  tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+  
+  setTimeout(() => tooltip.style.opacity = '1', 10);
+  
+  setTimeout(() => {
+    tooltip.style.opacity = '0';
+    setTimeout(() => {
+      if (tooltip.parentNode) {
+        tooltip.parentNode.removeChild(tooltip);
+      }
+    }, 300);
+  }, 2000);
 }
 
 console.log('[Starchive] Content script loaded on:', window.location.href);
