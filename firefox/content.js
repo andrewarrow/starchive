@@ -38,6 +38,11 @@ function handleMouseOver(event) {
         if (response) {
           console.log('[Starchive] Response hasContent:', response.hasContent, 'for video:', videoId);
           showVisualFeedback(target, response.hasContent, videoId);
+          
+          // Copy transcript to clipboard if available
+          if (response.hasContent && response.content) {
+            copyToClipboard(response.content, videoId);
+          }
         } else {
           console.log('[Starchive] No response received for', videoId);
         }
@@ -123,6 +128,66 @@ function showVisualFeedback(element, hasContent, videoId) {
   }, 1500);
   
   showTooltip(element, message, hasContent);
+}
+
+function copyToClipboard(content, videoId) {
+  console.log('[Starchive] Copying transcript to clipboard for', videoId);
+  
+  navigator.clipboard.writeText(content).then(() => {
+    console.log('[Starchive] Transcript copied to clipboard successfully for', videoId);
+    
+    // Show a brief notification
+    const notification = document.createElement('div');
+    notification.textContent = '📋 Transcript copied to clipboard!';
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #4CAF50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      z-index: 10001;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.style.opacity = '1', 10);
+    
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }, 2500);
+    
+  }).catch(err => {
+    console.error('[Starchive] Failed to copy transcript to clipboard:', err);
+    
+    // Fallback: create a temporary text area
+    const textArea = document.createElement('textarea');
+    textArea.value = content;
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    try {
+      document.execCommand('copy');
+      console.log('[Starchive] Transcript copied using fallback method for', videoId);
+    } catch (fallbackErr) {
+      console.error('[Starchive] Fallback copy method also failed:', fallbackErr);
+    }
+    
+    document.body.removeChild(textArea);
+  });
 }
 
 function showTooltip(element, message, isSuccess) {
