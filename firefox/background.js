@@ -66,6 +66,45 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   
+  if (msg.type === "copyStoredTranscript") {
+    console.log('[Starchive] Copy stored transcript request from popup');
+    
+    if (Object.keys(storedTranscripts).length === 0) {
+      console.log('[Starchive] No stored transcripts available');
+      sendResponse({
+        success: false,
+        error: 'No transcript available. Hover over a YouTube video with a transcript first.'
+      });
+      return true;
+    }
+    
+    // Get the most recently stored transcript
+    const sortedTranscripts = Object.entries(storedTranscripts)
+      .sort((a, b) => b[1].timestamp - a[1].timestamp);
+    
+    const [videoId, transcriptData] = sortedTranscripts[0];
+    
+    console.log(`[Starchive] Copying transcript for ${videoId} to clipboard, length: ${transcriptData.content.length}`);
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(transcriptData.content).then(() => {
+      console.log('[Starchive] Transcript copied to clipboard via popup');
+      sendResponse({
+        success: true,
+        videoId: videoId,
+        length: transcriptData.content.length
+      });
+    }).catch(err => {
+      console.error('[Starchive] Failed to copy via popup:', err);
+      sendResponse({
+        success: false,
+        error: 'Failed to copy to clipboard'
+      });
+    });
+    
+    return true;
+  }
+  
   if (msg.type === "youtubeVideo") {
     // Collect YouTube cookies then post video + cookies to backend
     try {
