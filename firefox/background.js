@@ -21,20 +21,18 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     fetch(`http://localhost:3009/get-txt?id=${msg.videoId}`)
       .then(res => {
         console.log(`[Starchive] Response status for ${msg.videoId}:`, res.status);
-        return res.text();
+        return res.json();
       })
-      .then(text => {
-        console.log(`[Starchive] Got txt for ${msg.videoId}:`, text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+      .then(data => {
+        console.log(`[Starchive] Got response for ${msg.videoId}:`, data);
         
-        // Check if the response contains actual transcript content or just a status message
-        const hasContent = !text.includes('Download started for video') && !text.includes('already in download queue') && text.length > 50;
-        
-        console.log(`[Starchive] About to send response - hasContent: ${hasContent}, videoId: ${msg.videoId}`);
+        console.log(`[Starchive] About to send response - hasContent: ${data.hasContent}, videoId: ${msg.videoId}`);
         
         const responseObj = {
-          hasContent: hasContent,
-          content: hasContent ? text : null,
-          videoId: msg.videoId
+          hasContent: data.hasContent,
+          content: data.content || null,
+          videoId: msg.videoId,
+          message: data.message || null
         };
         
         console.log(`[Starchive] Sending response object:`, responseObj);

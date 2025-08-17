@@ -298,8 +298,13 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 			http.Error(w, "Error reading txt file", http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "text/plain")
-		w.Write(content)
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]interface{}{
+			"hasContent": true,
+			"content":    string(content),
+			"videoId":    videoId,
+		}
+		json.NewEncoder(w).Encode(response)
 		fmt.Printf("[Starchive] Served %d bytes for video %s\n", len(content), videoId)
 		return
 	}
@@ -308,12 +313,23 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 	
 	if queue, ok := downloadQueue.(*DownloadQueue); ok {
 		added := queue.AddToQueue(videoId)
+		w.Header().Set("Content-Type", "application/json")
 		if added {
 			fmt.Printf("[Starchive] Added video %s to download queue\n", videoId)
-			fmt.Fprintf(w, "Download started for video %s", videoId)
+			response := map[string]interface{}{
+				"hasContent": false,
+				"message":    "Download started",
+				"videoId":    videoId,
+			}
+			json.NewEncoder(w).Encode(response)
 		} else {
 			fmt.Printf("[Starchive] Video %s already in queue\n", videoId)
-			fmt.Fprintf(w, "Video %s is already in download queue", videoId)
+			response := map[string]interface{}{
+				"hasContent": false,
+				"message":    "Already in download queue",
+				"videoId":    videoId,
+			}
+			json.NewEncoder(w).Encode(response)
 		}
 	} else {
 		fmt.Printf("[Starchive] Download queue not available\n")
