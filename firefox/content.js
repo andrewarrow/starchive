@@ -150,8 +150,8 @@ function showTooltip(element, message, isSuccess) {
   console.log('[Starchive] Tooltip added to DOM');
   
   const rect = element.getBoundingClientRect();
-  const left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2);
-  const top = (rect.top - tooltip.offsetHeight - 8);
+  const left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2 + window.scrollX);
+  const top = (rect.top - tooltip.offsetHeight - 8 + window.scrollY);
   
   tooltip.style.left = left + 'px';
   tooltip.style.top = top + 'px';
