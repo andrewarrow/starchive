@@ -10,6 +10,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   
+  if (msg.type === "requestTxt") {
+    fetch(`http://localhost:3009/get-txt?id=${msg.videoId}`)
+      .then(res => res.text())
+      .then(text => {
+        console.log(`Got txt for ${msg.videoId}:`, text);
+      })
+      .catch(err => {
+        console.error(`Error getting txt for ${msg.videoId}:`, err);
+      });
+    return true;
+  }
+  
   if (msg.type === "youtubeVideo") {
     // Collect YouTube cookies then post video + cookies to backend
     try {

@@ -72,6 +72,9 @@ func SetupRoutes(downloadQueue interface{}) {
 	http.HandleFunc("/youtube", func(w http.ResponseWriter, r *http.Request) {
 		handleYouTube(w, r, downloadQueue)
 	})
+	http.HandleFunc("/get-txt", func(w http.ResponseWriter, r *http.Request) {
+		handleGetTxt(w, r, downloadQueue)
+	})
 	http.HandleFunc("/", handleStatic)
 }
 
@@ -240,4 +243,41 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	http.NotFound(w, r)
+}
+
+func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interface{}) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	videoId := r.URL.Query().Get("id")
+	if videoId == "" {
+		http.Error(w, "Video ID is required", http.StatusBadRequest)
+		return
+	}
+
+	txtFilePath := fmt.Sprintf("./data2/%s.txt", videoId)
+	
+	if _, err := os.Stat(txtFilePath); err == nil {
+		content, err := os.ReadFile(txtFilePath)
+		if err != nil {
+			http.Error(w, "Error reading txt file", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write(content)
+		return
+	}
+
+	if queue, ok := downloadQueue.(*DownloadQueue); ok {
+		added := queue.AddToQueue(videoId)
+		if added {
+			fmt.Fprintf(w, "Download started for video %s", videoId)
+		} else {
+			fmt.Fprintf(w, "Video %s is already in download queue", videoId)
+		}
+	} else {
+		http.Error(w, "Download queue not available", http.StatusInternalServerError)
+	}
 }
