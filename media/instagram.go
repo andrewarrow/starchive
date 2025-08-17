@@ -55,8 +55,7 @@ func DownloadInstagram(videoID string) (string, error) {
 	cmd := exec.Command("yt-dlp",
 		"--cookies", cookieFile,
 		"-o", "./data/%(id)s.%(ext)s",
-		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
-		"--merge-output-format", "mp4",
+		"-f", "best[ext=mp4]/best",
 		videoURL)
 
 	cmd.Stdout = os.Stdout
