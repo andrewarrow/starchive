@@ -86,7 +86,7 @@ function showVisualFeedback(element, hasContent, videoId) {
   // Create overlay element
   const overlay = document.createElement('div');
   overlay.style.cssText = `
-    position: fixed;
+    position: absolute;
     border: 4px solid ${color};
     box-shadow: 0 0 15px ${color}, inset 0 0 15px ${color};
     pointer-events: none;
@@ -96,10 +96,10 @@ function showVisualFeedback(element, hasContent, videoId) {
     background: ${color}22;
   `;
   
-  // Position overlay on thumbnail
+  // Position overlay on thumbnail using page coordinates
   const rect = thumbnail.getBoundingClientRect();
-  overlay.style.left = rect.left + 'px';
-  overlay.style.top = rect.top + 'px';
+  overlay.style.left = (rect.left + window.scrollX) + 'px';
+  overlay.style.top = (rect.top + window.scrollY) + 'px';
   overlay.style.width = rect.width + 'px';
   overlay.style.height = rect.height + 'px';
   
