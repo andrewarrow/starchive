@@ -12,8 +12,7 @@ func IsYouTubeID(input string) bool {
 	return len(input) == 11 && !strings.Contains(input, ".")
 }
 
-func DownloadVideo(youtubeID string) (string, error) {
-
+func DownloadYouTube(youtubeID string) (string, error) {
 	mFile := fmt.Sprintf("./data/%s.mp4", youtubeID)
 
 	if _, err := os.Stat(mFile); err == nil {
@@ -21,14 +20,18 @@ func DownloadVideo(youtubeID string) (string, error) {
 		return youtubeID, nil
 	}
 
-	DownloadSubtitles(youtubeID)
-	DownloadThumbnail(youtubeID)
-	DownloadJSON(youtubeID)
+	// Get YouTube cookie file
+	cookieFile := GetCookieFile("youtube")
+	
+	// Download metadata first
+	DownloadYouTubeSubtitles(youtubeID, cookieFile)
+	DownloadYouTubeThumbnail(youtubeID, cookieFile)
+	DownloadYouTubeJSON(youtubeID, cookieFile)
 
-	fmt.Printf("Downloading video %s...\n", youtubeID)
+	fmt.Printf("Downloading YouTube video %s...\n", youtubeID)
 
 	cmd := exec.Command("yt-dlp",
-		"--cookies", "./cookies.txt",
+		"--cookies", cookieFile,
 		"-o", "./data/%(id)s.%(ext)s",
 		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
 		"--merge-output-format", "mp4",
@@ -47,34 +50,7 @@ func DownloadVideo(youtubeID string) (string, error) {
 	return youtubeID, nil
 }
 
-func EnsureWav(youtubeID string) error {
-	wavPath := fmt.Sprintf("./data/%s.wav", youtubeID)
-	if _, err := os.Stat(wavPath); err == nil {
-		fmt.Printf("WAV %s already exists, skipping creation\n", wavPath)
-		return nil
-	}
-
-	cmd := exec.Command(
-		"ffmpeg",
-		"-y",
-		"-i", fmt.Sprintf("./data/%s.mp4", youtubeID),
-		"-vn",
-		"-acodec", "pcm_s16le",
-		"-ar", "44100",
-		"-ac", "2",
-		wavPath,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ffmpeg failed creating WAV: %v", err)
-	}
-
-	return nil
-}
-
-func DownloadSubtitles(youtubeID string) error {
+func DownloadYouTubeSubtitles(youtubeID, cookieFile string) error {
 	vttFile := youtubeID + ".en.vtt"
 
 	// Check if .en.vtt file already exists
@@ -83,13 +59,13 @@ func DownloadSubtitles(youtubeID string) error {
 		return nil
 	}
 
-	fmt.Printf("Downloading subtitles...\n")
+	fmt.Printf("Downloading YouTube subtitles...\n")
 	youtubeURL := "https://www.youtube.com/watch?v=" + youtubeID
 
 	// Retry with exponential backoff up to 50 times
 	var lastErr error
 	for attempt := 1; attempt <= 1; attempt++ {
-		subCmd := exec.Command("yt-dlp", "--cookies", "./cookies.txt", "-o", "./data/"+youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", youtubeURL)
+		subCmd := exec.Command("yt-dlp", "--cookies", cookieFile, "-o", "./data/"+youtubeID, "--skip-download", "--write-auto-sub", "--sub-lang", "en", youtubeURL)
 		subCmd.Stdout = os.Stdout
 		subCmd.Stderr = os.Stderr
 
@@ -118,7 +94,7 @@ func DownloadSubtitles(youtubeID string) error {
 	return fmt.Errorf("could not download subtitles after 50 attempts: %v", lastErr)
 }
 
-func DownloadThumbnail(youtubeID string) error {
+func DownloadYouTubeThumbnail(youtubeID, cookieFile string) error {
 	jpgPath := fmt.Sprintf("./data/%s.jpg", youtubeID)
 
 	if _, err := os.Stat(jpgPath); err == nil {
@@ -126,16 +102,16 @@ func DownloadThumbnail(youtubeID string) error {
 		return nil
 	}
 
-	fmt.Printf("Downloading thumbnail...\n")
+	fmt.Printf("Downloading YouTube thumbnail...\n")
 
 	cmd := exec.Command(
 		"yt-dlp",
-		"--cookies", "./cookies.txt",
+		"--cookies", cookieFile,
 		"-o", "./data/"+youtubeID,
 		"--skip-download",
 		"--write-thumbnail",
 		"--convert-thumbnails", "jpg",
-		youtubeID,
+		"https://www.youtube.com/watch?v="+youtubeID,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -147,7 +123,7 @@ func DownloadThumbnail(youtubeID string) error {
 	return nil
 }
 
-func DownloadJSON(youtubeID string) error {
+func DownloadYouTubeJSON(youtubeID, cookieFile string) error {
 	jsonPath := fmt.Sprintf("./data/%s.json", youtubeID)
 
 	if _, err := os.Stat(jsonPath); err == nil {
@@ -155,11 +131,11 @@ func DownloadJSON(youtubeID string) error {
 		return nil
 	}
 
-	fmt.Printf("Downloading JSON metadata...\n")
+	fmt.Printf("Downloading YouTube JSON metadata...\n")
 
 	cmd := exec.Command(
 		"yt-dlp",
-		"--cookies", "./cookies.txt",
+		"--cookies", cookieFile,
 		"-j",
 		"--no-warnings",
 		"https://www.youtube.com/watch?v="+youtubeID,

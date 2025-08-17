@@ -332,14 +332,27 @@ func handleSyncCommand() {
 
 func handleDlCommand() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: starchive dl <id>")
-		fmt.Println("Example: starchive dl abc123")
+		fmt.Println("Usage: starchive dl <id_or_url>")
+		fmt.Println("Examples:")
+		fmt.Println("  starchive dl abc123")
+		fmt.Println("  starchive dl https://www.youtube.com/watch?v=abc123")
+		fmt.Println("  starchive dl https://www.instagram.com/p/DMxMgnvhwmK/")
+		fmt.Println("  starchive dl https://www.instagram.com/reels/DMxMgnvhwmK/")
 		os.Exit(1)
 	}
 
-	videoId := os.Args[2]
+	input := os.Args[2]
 	
-	_, err := media.DownloadVideo(videoId)
+	// Extract ID and platform from input
+	id, platform := media.ParseVideoInput(input)
+	if id == "" {
+		fmt.Printf("Error: Could not extract ID from input: %s\n", input)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Detected platform: %s, ID: %s\n", platform, id)
+	
+	_, err := media.DownloadVideo(id, platform)
 	if err != nil {
 		fmt.Printf("Error downloading video: %v\n", err)
 		os.Exit(1)

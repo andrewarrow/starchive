@@ -60,11 +60,19 @@ func (dq *DownloadQueue) processQueue() {
 		fmt.Printf("Processing video %s. Remaining in queue: %d\n", videoId, len(dq.queue))
 		dq.mutex.Unlock()
 
-		_, err := media.DownloadVideo(videoId)
+		// Auto-detect platform based on ID format
+		id, platform := media.ParseVideoInput(videoId)
+		if id == "" {
+			fmt.Printf("Could not determine platform for video %s, assuming YouTube\n", videoId)
+			platform = "youtube"
+			id = videoId
+		}
+		
+		_, err := media.DownloadVideo(id, platform)
 		if err != nil {
-			fmt.Printf("Error downloading video %s: %v\n", videoId, err)
+			fmt.Printf("Error downloading %s video %s: %v\n", platform, id, err)
 		} else {
-			fmt.Printf("Successfully downloaded video %s\n", videoId)
+			fmt.Printf("Successfully downloaded %s video %s\n", platform, id)
 		}
 	}
 }
