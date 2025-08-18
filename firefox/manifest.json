@@ -19,6 +19,10 @@
   }],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Starchive"
+    "default_title": "Starchive",
+    "default_icon": "star.png"
+  },
+  "icons": {
+    "48": "star.png"
   }
 }
