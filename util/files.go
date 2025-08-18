@@ -179,3 +179,21 @@ func retryVideo(id string) {
 		fmt.Printf("Video download completed for %s\n", id)
 	}
 }
+
+// DirSize calculates the total size of all files in a directory recursively
+func DirSize(path string) (int64, error) {
+	var size int64
+	
+	err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			// Skip files that can't be accessed rather than failing completely
+			return nil
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	
+	return size, err
+}

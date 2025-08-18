@@ -303,13 +303,33 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Printf("[Starchive] Disk usage - Total: %d bytes (%s), Used: %d bytes (%s), Free: %d bytes (%s)\n", 
 			total, util.Pretty(total), used, util.Pretty(used), free, util.Pretty(free))
+		
+		// Get actual size of ./data directory
+		dataSize, dataSizeErr := util.DirSize("./data")
+		var dataSizePretty string
+		var dataPercentOfFree float64
+		
+		if dataSizeErr != nil {
+			fmt.Printf("[Starchive] Error getting data directory size: %v\n", dataSizeErr)
+			dataSizePretty = "Error"
+			dataPercentOfFree = 0
+		} else {
+			dataSizePretty = util.Pretty(uint64(dataSize))
+			dataPercentOfFree = (float64(dataSize) / float64(free)) * 100
+			fmt.Printf("[Starchive] Data directory size: %d bytes (%s), %.1f%% of free space\n", 
+				dataSize, dataSizePretty, dataPercentOfFree)
+		}
+		
 		diskInfo = map[string]interface{}{
-			"total":        total,
-			"used":         used,
-			"free":         free,
-			"totalPretty":  util.Pretty(total),
-			"usedPretty":   util.Pretty(used),
-			"freePretty":   util.Pretty(free),
+			"total":            total,
+			"used":             used,
+			"free":             free,
+			"totalPretty":      util.Pretty(total),
+			"usedPretty":       util.Pretty(used),
+			"freePretty":       util.Pretty(free),
+			"dataSize":         dataSize,
+			"dataSizePretty":   dataSizePretty,
+			"dataPercentOfFree": dataPercentOfFree,
 		}
 		fmt.Printf("[Starchive] Created diskInfo object: %+v\n", diskInfo)
 	}

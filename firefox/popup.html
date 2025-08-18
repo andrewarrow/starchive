@@ -75,6 +75,74 @@
       font-weight: 600;
       color: #ffffff;
     }
+    
+    .disk-usage-container {
+      margin-top: 16px;
+      padding: 16px;
+      background: #2d2d2d;
+      border: 1px solid #404040;
+      border-radius: 8px;
+      display: none;
+    }
+    
+    .disk-usage-container.visible {
+      display: block;
+    }
+    
+    .disk-usage-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #ffffff;
+    }
+    
+    .disk-bar {
+      width: 100%;
+      height: 20px;
+      background: #1a1a1a;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    
+    .disk-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #FFC107, #FF5722);
+      transition: width 0.3s ease;
+      border-radius: 10px;
+    }
+    
+    .disk-usage-stats {
+      font-size: 11px;
+      line-height: 1.4;
+      color: #cccccc;
+    }
+    
+    .data-folder-info {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #404040;
+      font-size: 12px;
+      color: #ffffff;
+    }
+    
+    .data-folder-bar {
+      width: 100%;
+      height: 16px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 8px 0;
+      position: relative;
+    }
+    
+    .data-folder-bar-fill {
+      height: 100%;
+      background: #2196F3;
+      transition: width 0.3s ease;
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
@@ -84,6 +152,23 @@
   </div>
   <button id="fetchButton">Fetch Data</button>
   <button id="copyTranscriptButton">📋 Copy Transcript</button>
+  
+  <div id="diskUsageContainer" class="disk-usage-container">
+    <div class="disk-usage-title">Disk Usage</div>
+    <div class="disk-bar">
+      <div id="diskBarFill" class="disk-bar-fill"></div>
+    </div>
+    <div id="diskUsageStats" class="disk-usage-stats"></div>
+    
+    <div class="data-folder-info">
+      <div>Data Folder: <span id="dataFolderSize"></span></div>
+      <div class="data-folder-bar">
+        <div id="dataFolderBarFill" class="data-folder-bar-fill"></div>
+      </div>
+      <div id="dataFolderPercent"></div>
+    </div>
+  </div>
+  
   <div id="result"></div>
   <script src="popup.js"></script>
 </body>

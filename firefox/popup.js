@@ -1,36 +1,73 @@
+function updateDiskUsageUI(diskUsage) {
+  const container = document.getElementById('diskUsageContainer');
+  const diskBarFill = document.getElementById('diskBarFill');
+  const diskUsageStats = document.getElementById('diskUsageStats');
+  const dataFolderSize = document.getElementById('dataFolderSize');
+  const dataFolderBarFill = document.getElementById('dataFolderBarFill');
+  const dataFolderPercent = document.getElementById('dataFolderPercent');
+
+  if (diskUsage.error) {
+    container.classList.add('visible');
+    diskUsageStats.textContent = `Error: ${diskUsage.error}`;
+    return;
+  }
+
+  // Calculate percentage of disk used
+  const usedPercent = (diskUsage.used / diskUsage.total) * 100;
+  
+  // Show the container
+  container.classList.add('visible');
+  
+  // Update disk usage bar
+  diskBarFill.style.width = `${usedPercent}%`;
+  
+  // Update disk usage stats
+  diskUsageStats.innerHTML = `
+    Total: ${diskUsage.totalPretty} • Used: ${diskUsage.usedPretty} (${usedPercent.toFixed(1)}%) • Free: ${diskUsage.freePretty}
+  `;
+  
+  // Update data folder info
+  dataFolderSize.textContent = diskUsage.dataSizePretty || 'Unknown';
+  
+  if (diskUsage.dataPercentOfFree) {
+    const dataPercent = Math.min(diskUsage.dataPercentOfFree, 100); // Cap at 100%
+    dataFolderBarFill.style.width = `${dataPercent}%`;
+    dataFolderPercent.textContent = `${diskUsage.dataPercentOfFree.toFixed(1)}% of free space`;
+  } else {
+    dataFolderBarFill.style.width = '0%';
+    dataFolderPercent.textContent = 'Unable to calculate percentage';
+  }
+}
+
 document.getElementById('fetchButton').addEventListener('click', () => {
   console.log('[Starchive] Fetch button clicked in popup');
   browser.runtime.sendMessage({ type: "fetchData" }, (response) => {
     console.log('[Starchive] Received response in popup:', response);
     const resultDiv = document.getElementById('result');
+    
     if (response && response.error) {
       console.log('[Starchive] Error in response:', response.error);
       resultDiv.textContent = `Error: ${response.error}`;
+      // Hide disk usage container on error
+      document.getElementById('diskUsageContainer').classList.remove('visible');
     } else if (response) {
       console.log('[Starchive] Processing response, diskUsage:', response.diskUsage);
-      // Display server status and disk usage in a user-friendly format
-      let output = `Status: ${response.status}\n`;
+      
+      // Show server status in result div
+      resultDiv.textContent = `Status: ${response.status}`;
+      
       if (response.diskUsage) {
         console.log('[Starchive] Found diskUsage object:', response.diskUsage);
-        if (response.diskUsage.error) {
-          console.log('[Starchive] Disk usage error:', response.diskUsage.error);
-          output += `Disk: ${response.diskUsage.error}\n`;
-        } else {
-          console.log('[Starchive] Adding disk usage to output');
-          output += `Disk Usage for ./data:\n`;
-          output += `  Total: ${response.diskUsage.totalPretty}\n`;
-          output += `  Used:  ${response.diskUsage.usedPretty}\n`;
-          output += `  Free:  ${response.diskUsage.freePretty}\n`;
-        }
+        updateDiskUsageUI(response.diskUsage);
       } else {
         console.log('[Starchive] No diskUsage found in response');
-        output += `No disk usage data available\n`;
+        resultDiv.textContent += `\nNo disk usage data available`;
+        document.getElementById('diskUsageContainer').classList.remove('visible');
       }
-      console.log('[Starchive] Final output:', output);
-      resultDiv.textContent = output;
     } else {
       console.log('[Starchive] No response received');
       resultDiv.textContent = 'No response received';
+      document.getElementById('diskUsageContainer').classList.remove('visible');
     }
   });
 });
