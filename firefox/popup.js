@@ -1,11 +1,35 @@
 document.getElementById('fetchButton').addEventListener('click', () => {
+  console.log('[Starchive] Fetch button clicked in popup');
   browser.runtime.sendMessage({ type: "fetchData" }, (response) => {
+    console.log('[Starchive] Received response in popup:', response);
     const resultDiv = document.getElementById('result');
     if (response && response.error) {
+      console.log('[Starchive] Error in response:', response.error);
       resultDiv.textContent = `Error: ${response.error}`;
     } else if (response) {
-      resultDiv.textContent = JSON.stringify(response, null, 2);
+      console.log('[Starchive] Processing response, diskUsage:', response.diskUsage);
+      // Display server status and disk usage in a user-friendly format
+      let output = `Status: ${response.status}\n`;
+      if (response.diskUsage) {
+        console.log('[Starchive] Found diskUsage object:', response.diskUsage);
+        if (response.diskUsage.error) {
+          console.log('[Starchive] Disk usage error:', response.diskUsage.error);
+          output += `Disk: ${response.diskUsage.error}\n`;
+        } else {
+          console.log('[Starchive] Adding disk usage to output');
+          output += `Disk Usage for ./data:\n`;
+          output += `  Total: ${response.diskUsage.totalPretty}\n`;
+          output += `  Used:  ${response.diskUsage.usedPretty}\n`;
+          output += `  Free:  ${response.diskUsage.freePretty}\n`;
+        }
+      } else {
+        console.log('[Starchive] No diskUsage found in response');
+        output += `No disk usage data available\n`;
+      }
+      console.log('[Starchive] Final output:', output);
+      resultDiv.textContent = output;
     } else {
+      console.log('[Starchive] No response received');
       resultDiv.textContent = 'No response received';
     }
   });

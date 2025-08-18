@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"starchive/util"
 )
 
 var (
@@ -289,11 +291,37 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get disk usage for ./data directory
+	fmt.Printf("[Starchive] Getting disk usage for ./data directory\n")
+	total, used, free, err := util.Usage("./data")
+	var diskInfo map[string]interface{}
+	if err != nil {
+		fmt.Printf("[Starchive] Error getting disk usage: %v\n", err)
+		diskInfo = map[string]interface{}{
+			"error": fmt.Sprintf("Unable to get disk usage: %v", err),
+		}
+	} else {
+		fmt.Printf("[Starchive] Disk usage - Total: %d bytes (%s), Used: %d bytes (%s), Free: %d bytes (%s)\n", 
+			total, util.Pretty(total), used, util.Pretty(used), free, util.Pretty(free))
+		diskInfo = map[string]interface{}{
+			"total":        total,
+			"used":         used,
+			"free":         free,
+			"totalPretty":  util.Pretty(total),
+			"usedPretty":   util.Pretty(used),
+			"freePretty":   util.Pretty(free),
+		}
+		fmt.Printf("[Starchive] Created diskInfo object: %+v\n", diskInfo)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]interface{}{
-		"status": "ok",
-		"message": "Starchive server is running",
+		"status":    "ok",
+		"message":   "Starchive server is running",
+		"diskUsage": diskInfo,
 	}
+	
+	fmt.Printf("[Starchive] Final response object: %+v\n", response)
 	
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		fmt.Printf("[Starchive] Error encoding /data response: %v\n", err)

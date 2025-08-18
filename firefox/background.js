@@ -7,11 +7,19 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log('[Starchive] Received message:', msg.type, msg);
   
   if (msg.type === "fetchData") {
+    console.log('[Starchive] Fetching data from /data endpoint');
     fetch("http://localhost:3009/data")
-      .then(res => res.json())
-      .then(data => sendResponse(data))
+      .then(res => {
+        console.log('[Starchive] Response status:', res.status);
+        return res.json();
+      })
+      .then(data => {
+        console.log('[Starchive] Received data from server:', data);
+        console.log('[Starchive] diskUsage in response:', data.diskUsage);
+        sendResponse(data);
+      })
       .catch(err => {
-        console.error(err);
+        console.error('[Starchive] Error fetching data:', err);
         sendResponse({ error: err.message });
       });
     return true;
@@ -222,7 +230,7 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 // Handle toolbar button clicks
-browser.browserAction.onClicked.addListener((tab) => {
+(browser.action || browser.browserAction).onClicked.addListener((tab) => {
   console.log('[Starchive] Toolbar button clicked, checking for stored transcripts');
   
   if (Object.keys(storedTranscripts).length === 0) {
