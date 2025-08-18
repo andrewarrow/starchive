@@ -57,9 +57,31 @@
     #result:empty {
       display: none;
     }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header img {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 8px;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #ffffff;
+    }
   </style>
 </head>
 <body>
+  <div class="header">
+    <img src="star.png" alt="Starchive">
+    <h1>Starchive</h1>
+  </div>
   <button id="fetchButton">Fetch Data</button>
   <button id="copyTranscriptButton">📋 Copy Transcript</button>
   <div id="result"></div>
