@@ -15,6 +15,19 @@ import (
 var downloadQueue *web.DownloadQueue
 var downloadVideos bool
 
+func updateYtDlp() {
+	fmt.Println("Updating yt-dlp...")
+	updateCmd := exec.Command("python3", "-m", "pip", "install", "-U", "yt-dlp")
+	output, err := updateCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Warning: Failed to update yt-dlp: %v\n", err)
+		fmt.Printf("Output: %s\n", output)
+	} else {
+		fmt.Println("yt-dlp updated successfully")
+		fmt.Printf("Output: %s\n", output)
+	}
+}
+
 func main() {
 	// Simple subcommand dispatch: first arg is the command
 	if len(os.Args) < 2 {
@@ -33,17 +46,7 @@ func main() {
 			os.Exit(2)
 		}
 
-		// Update yt-dlp to latest version
-		fmt.Println("Updating yt-dlp...")
-		updateCmd := exec.Command("python3", "-m", "pip", "install", "-U", "yt-dlp")
-		output, err := updateCmd.CombinedOutput()
-		if err != nil {
-			fmt.Printf("Warning: Failed to update yt-dlp: %v\n", err)
-			fmt.Printf("Output: %s\n", output)
-		} else {
-			fmt.Println("yt-dlp updated successfully")
-			fmt.Printf("Output: %s\n", output)
-		}
+		updateYtDlp()
 
 		downloadQueue = web.NewDownloadQueue()
 		web.SetupRoutes(downloadQueue)
@@ -56,6 +59,7 @@ func main() {
 	case "ls":
 		handleLsCommand()
 	case "dl":
+		updateYtDlp()
 		handleDlCommand()
 	case "external":
 		handleExternalCommand()
