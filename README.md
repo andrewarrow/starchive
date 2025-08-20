@@ -2,6 +2,14 @@
 
 An advanced YouTube video archiving and audio processing system with intelligent music blending capabilities. Starchive combines automated video downloading with sophisticated audio manipulation tools for creating mashups and analyzing music.
 
+# Note:
+
+make sure to run:
+
+`python3 -m pip install -U yt-dlp`
+
+often because there are new updates almost every day.
+
 ## Features
 
 ### Core Archiving

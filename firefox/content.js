@@ -470,6 +470,11 @@ const observer = new MutationObserver(() => {
     checkForYouTubeVideo();
     checkForInstagramPost();
     setupHoverDetection();
+    
+    // Reset first gesture detection when URL changes (domain check is handled inside the function)
+    firstGestureUsed = false;
+    currentVideoId = null;
+    setupFirstGestureCopyOnce();
   }
 });
 
@@ -481,6 +486,18 @@ let currentVideoId = null;
 
 function setupFirstGestureCopyOnce() {
   if (firstGestureUsed) return;
+  
+  // Only enable first gesture detection on YouTube and Instagram
+  const hostname = window.location.hostname;
+  const isYouTube = hostname === 'www.youtube.com' || hostname === 'youtube.com';
+  const isInstagram = hostname === 'www.instagram.com' || hostname === 'instagram.com';
+  
+  if (!isYouTube && !isInstagram) {
+    console.log('[Starchive] First gesture detection disabled - not on YouTube or Instagram');
+    return;
+  }
+  
+  console.log('[Starchive] First gesture detection enabled on', hostname);
   
   const copy = async () => {
     try {
@@ -602,7 +619,7 @@ function showFirstGestureNotification(charCount, videoId) {
   }, 3000);
 }
 
-// Initialize first gesture detection
+// Initialize first gesture detection (domain check is handled inside the function)
 setupFirstGestureCopyOnce();
 
 browser.runtime.sendMessage({ type: "fetchData" });
