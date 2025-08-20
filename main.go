@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	
 	"starchive/audio"
 	"starchive/util"
@@ -30,6 +31,18 @@ func main() {
 		if err := runCmd.Parse(os.Args[2:]); err != nil {
 			fmt.Println("Error parsing flags:", err)
 			os.Exit(2)
+		}
+
+		// Update yt-dlp to latest version
+		fmt.Println("Updating yt-dlp...")
+		updateCmd := exec.Command("python3", "-m", "pip", "install", "-U", "yt-dlp")
+		output, err := updateCmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Warning: Failed to update yt-dlp: %v\n", err)
+			fmt.Printf("Output: %s\n", output)
+		} else {
+			fmt.Println("yt-dlp updated successfully")
+			fmt.Printf("Output: %s\n", output)
 		}
 
 		downloadQueue = web.NewDownloadQueue()
