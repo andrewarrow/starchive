@@ -533,3 +533,87 @@ func handleUlCommand() {
 
 	fmt.Printf("Successfully uploaded %s to YouTube\n", id)
 }
+
+func handleSmallCommand() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive small <id>")
+		fmt.Println("Example: starchive small abc123")
+		fmt.Println("This will create a small optimized video from data/id.mp4")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	inputPath := fmt.Sprintf("./data/%s.mp4", id)
+
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Creating small optimized video for %s...\n", id)
+
+	// Step 1: Prepare video with specific settings
+	fmt.Println("Step 1: Preparing video...")
+	prepCmd := exec.Command("ffmpeg", "-i", inputPath,
+		"-vf", "fps=24,scale=242:428:flags=lanczos:force_original_aspect_ratio=decrease,pad=242:428:(ow-iw)/2:(oh-ih)/2,hqdn3d=1.5:1.5:6:6",
+		"-c:v", "h264_videotoolbox", "-b:v", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
+		"-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-ac", "1",
+		"-movflags", "+faststart",
+		"tmp_prep.mp4")
+
+	fmt.Printf("Running: %s\n", prepCmd.String())
+	prepCmd.Stdout = os.Stdout
+	prepCmd.Stderr = os.Stderr
+
+	err := prepCmd.Run()
+	if err != nil {
+		fmt.Printf("Error in preparation step: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Step 2: First pass (no audio)
+	fmt.Println("\nStep 2: First pass encoding (no audio)...")
+	pass1Cmd := exec.Command("ffmpeg", "-y", "-i", "tmp_prep.mp4",
+		"-c:v", "libx264", "-b:v", "150k", "-maxrate", "150k", "-bufsize", "300k",
+		"-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "3.1",
+		"-x264-params", "aq-mode=2:aq-strength=1.0:rc-lookahead=40:ref=4:keyint=120:scenecut=40:deblock=1,1:me=umh:subme=8",
+		"-an", "-f", "mp4", "/dev/null")
+
+	fmt.Printf("Running: %s\n", pass1Cmd.String())
+	pass1Cmd.Stdout = os.Stdout
+	pass1Cmd.Stderr = os.Stderr
+
+	err = pass1Cmd.Run()
+	if err != nil {
+		fmt.Printf("Error in first pass: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Step 3: Second pass (add audio)
+	fmt.Println("\nStep 3: Second pass encoding (with audio)...")
+	outputPath := fmt.Sprintf("./data/%s-small.mp4", id)
+	pass2Cmd := exec.Command("ffmpeg", "-i", "tmp_prep.mp4",
+		"-c:v", "libx264", "-b:v", "150k", "-maxrate", "150k", "-bufsize", "300k",
+		"-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "3.1",
+		"-x264-params", "aq-mode=2:aq-strength=1.0:rc-lookahead=40:ref=4:keyint=120:scenecut=40:deblock=1,1:me=umh:subme=8",
+		"-c:a", "aac", "-b:a", "32k", "-ar", "48000", "-ac", "1",
+		"-movflags", "+faststart",
+		outputPath)
+
+	fmt.Printf("Running: %s\n", pass2Cmd.String())
+	pass2Cmd.Stdout = os.Stdout
+	pass2Cmd.Stderr = os.Stderr
+
+	err = pass2Cmd.Run()
+	if err != nil {
+		fmt.Printf("Error in second pass: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Clean up temporary file
+	if err := os.Remove("tmp_prep.mp4"); err != nil {
+		fmt.Printf("Warning: Could not remove temporary file tmp_prep.mp4: %v\n", err)
+	}
+
+	fmt.Printf("\nSuccessfully created small optimized video: %s\n", outputPath)
+}
