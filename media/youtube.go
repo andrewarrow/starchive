@@ -33,8 +33,8 @@ func DownloadYouTube(youtubeID string) (string, error) {
 	args := []string{
 		"--cookies", cookieFile,
 		"-o", "./data/%(id)s.%(ext)s",
-		"-f", "mp4[vcodec^=avc1][acodec^=mp4a]/mp4/best",
-		"--no-post-overwrites",
+		"-f", "bv*[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/best[ext=mp4][vcodec^=avc1]",
+		"--merge-output-format", "mp4",
 	}
 
 	if poToken := getPOToken(cookieFile); poToken != "" {
