@@ -105,6 +105,14 @@ function handleMouseOver(event) {
               videoId: videoId,
               content: response.content
             });
+            
+            // Reset gesture detection for new video ID
+            if (currentVideoId !== videoId) {
+              console.log('[Starchive] New video ID detected, resetting gesture detection:', videoId);
+              currentVideoId = videoId;
+              firstGestureUsed = false;
+              setupFirstGestureCopyOnce();
+            }
           } else {
             console.log('[Starchive] No transcript to store - hasContent:', response.hasContent, 'content length:', response.content ? response.content.length : 'null');
           }
@@ -466,5 +474,135 @@ const observer = new MutationObserver(() => {
 });
 
 observer.observe(document, { subtree: true, childList: true });
+
+// Set up first user gesture detection for clipboard copying
+let firstGestureUsed = false;
+let currentVideoId = null;
+
+function setupFirstGestureCopyOnce() {
+  if (firstGestureUsed) return;
+  
+  const copy = async () => {
+    try {
+      console.log('[Starchive] First gesture detected, attempting to fetch and copy data');
+      firstGestureUsed = true;
+      
+      // Fetch data from the extension's background script (like the old fetch button)
+      browser.runtime.sendMessage({ type: "fetchData" }, (response) => {
+        console.log('[Starchive] Received response for first gesture:', response);
+        
+        if (response && !response.error) {
+          // Get the most recent transcript if available
+          browser.runtime.sendMessage({ type: "getStoredTranscript" }, (transcriptResponse) => {
+            let textToCopy = '';
+            let charCount = 0;
+            
+            if (transcriptResponse && transcriptResponse.success && transcriptResponse.content) {
+              textToCopy = transcriptResponse.content;
+              charCount = textToCopy.length;
+              console.log('[Starchive] Copying transcript to clipboard via first gesture');
+            } else {
+              // Fallback to status message if no transcript
+              textToCopy = `Starchive Status: ${response.status}`;
+              if (response.diskUsage) {
+                textToCopy += `\nDisk Usage: ${response.diskUsage.usedPretty} / ${response.diskUsage.totalPretty}`;
+              }
+              charCount = textToCopy.length;
+              console.log('[Starchive] Copying status info to clipboard via first gesture');
+            }
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+              console.log('[Starchive] Content copied to clipboard successfully via first gesture');
+              showFirstGestureNotification(charCount, transcriptResponse?.videoId);
+            }).catch(err => {
+              console.error('[Starchive] First gesture clipboard copy failed:', err);
+              // Fallback method
+              const ta = document.createElement('textarea');
+              ta.value = textToCopy;
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              console.log('[Starchive] Content copied via fallback method');
+              showFirstGestureNotification(charCount, transcriptResponse?.videoId);
+            });
+          });
+        } else {
+          console.error('[Starchive] Error in fetch response:', response?.error);
+        }
+      });
+    } catch (err) {
+      console.error('[Starchive] First gesture copy error:', err);
+    } finally {
+      removeListeners();
+    }
+  };
+
+  const onPointer = () => copy();
+  const onKey = (e) => {
+    // Ignore pure modifier keys (often don't count)
+    if (['Shift','Control','Alt','Meta'].includes(e.key)) return;
+    copy();
+  };
+  const onTouch = () => copy();
+
+  function addListeners() {
+    window.addEventListener('pointerdown', onPointer, { once: true, capture: true });
+    window.addEventListener('keydown', onKey, { once: true, capture: true });
+    window.addEventListener('touchend', onTouch, { once: true, capture: true });
+  }
+  
+  function removeListeners() {
+    window.removeEventListener('pointerdown', onPointer, true);
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('touchend', onTouch, true);
+  }
+
+  addListeners();
+}
+
+function showFirstGestureNotification(charCount, videoId) {
+  const notification = document.createElement('div');
+  const message = videoId 
+    ? `📋 Transcript copied! ${charCount} characters (${videoId})`
+    : `📋 Data copied! ${charCount} characters`;
+  
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4CAF50;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    z-index: 10004;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    max-width: 400px;
+    word-wrap: break-word;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => notification.style.opacity = '1', 10);
+  
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// Initialize first gesture detection
+setupFirstGestureCopyOnce();
 
 browser.runtime.sendMessage({ type: "fetchData" });
