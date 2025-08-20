@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"starchive/util"
 )
 
-func handleBlendCommand() {
+func HandleBlend() {
 	if len(os.Args) < 4 {
 		fmt.Println("Usage: starchive blend <id1> <id2>")
 		fmt.Println("Example: starchive blend OIduTH7NYA8 EbD7lfrsY2s")
@@ -32,7 +32,7 @@ func handleBlendCommand() {
 	blendShell.Run()
 }
 
-func handleBlendClearCommand() {
+func HandleBlendClear() {
 	if len(os.Args) == 2 {
 		clearAllBlendMetadata()
 	} else if len(os.Args) == 4 {

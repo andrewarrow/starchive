@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	
 	"starchive/audio"
+	"starchive/handlers"
 	"starchive/util"
 	"starchive/web"
 )
@@ -57,18 +58,18 @@ func main() {
 			os.Exit(1)
 		}
 	case "ls":
-		handleLsCommand()
+		handlers.HandleLs()
 	case "dl":
 		updateYtDlp()
-		handleDlCommand()
+		handlers.HandleDl()
 	case "external":
-		handleExternalCommand()
+		handlers.HandleExternal()
 	case "vocal", "vocals":
-		handleVocalCommand()
+		handlers.HandleVocal()
 	case "bpm":
-		handleBpmCommand()
+		handlers.HandleBpm()
 	case "sync":
-		handleSyncCommand()
+		handlers.HandleSync()
 	case "split":
 		audio.HandleSplitCommand(os.Args[2:])
 	case "rm":
@@ -78,15 +79,15 @@ func main() {
 	case "demo":
 		audio.HandleDemoCommand(os.Args[2:])
 	case "blend":
-		handleBlendCommand()
+		handlers.HandleBlend()
 	case "blend-clear":
-		handleBlendClearCommand()
+		handlers.HandleBlendClear()
 	case "retry":
 		util.HandleRetryCommand(os.Args[2:])
 	case "ul":
-		handleUlCommand()
+		handlers.HandleUl()
 	case "small":
-		handleSmallCommand()
+		handlers.HandleSmall()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run         Start the server (default features)\n  ls          List files in ./data\n  dl          Download video with given ID\n  external    Import external audio file to data directory\n  vocal       Extract vocals from audio file using audio-separator\n  bpm         Analyze BPM and key of vocal and instrumental files\n  sync        Synchronize two audio files for mashups using rubberband\n  split       Split audio file by silence detection\n  rm          Remove all files with specified id from ./data\n  play        Play a wav file starting from the middle (press any key to stop)\n  demo        Create 30-second demo with +3 pitch shift from middle of track\n  blend       Interactive blend shell for mixing two tracks\n  blend-clear Clear blend metadata for track combinations\n  retry       Retry downloading specific components (vtt, json, thumbnail, video) for a given ID\n  ul          Upload mp4 to YouTube using the given ID\n  small       Create small optimized video from data/id.mp4")

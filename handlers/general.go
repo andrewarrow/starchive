@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"encoding/json"
@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	
+
 	"starchive/audio"
 	"starchive/media"
 	"starchive/util"
 )
 
-func handleLsCommand() {
+func HandleLs() {
 	db, err := util.InitDatabase()
 	if err != nil {
 		fmt.Printf("Error initializing database: %v\n", err)
@@ -90,7 +90,7 @@ func handleLsCommand() {
 	}
 }
 
-func handleVocalCommand() {
+func HandleVocal() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: starchive vocal <id>")
 		fmt.Println("Example: starchive vocal abc123")
@@ -162,7 +162,7 @@ func handleVocalCommand() {
 	}
 }
 
-func handleBpmCommand() {
+func HandleBpm() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: starchive bpm <id>")
 		fmt.Println("Example: starchive bpm Oa_RSwwpPaA")
@@ -212,7 +212,7 @@ func handleBpmCommand() {
 	}
 }
 
-func handleSyncCommand() {
+func HandleSync() {
 	if len(os.Args) < 4 {
 		fmt.Println("Usage: starchive sync <id1> <id2>")
 		fmt.Println("Example: starchive sync NdYWuo9OFAw nlcIKh6sBtc")
@@ -330,7 +330,7 @@ func handleSyncCommand() {
 	}
 }
 
-func handleDlCommand() {
+func HandleDl() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: starchive dl <id_or_url>")
 		fmt.Println("Examples:")
@@ -359,7 +359,7 @@ func handleDlCommand() {
 	}
 }
 
-func handleExternalCommand() {
+func HandleExternal() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: starchive external <file_path>")
 		fmt.Println("Example: starchive external ~/Documents/cd_audio_from_gnr_lies.wav")
@@ -490,7 +490,7 @@ func handleExternalCommand() {
 	fmt.Printf("File: %s\n", destPath)
 }
 
-func handleUlCommand() {
+func HandleUl() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: starchive ul <id>")
 		fmt.Println("Example: starchive ul abc123")
@@ -534,7 +534,7 @@ func handleUlCommand() {
 	fmt.Printf("Successfully uploaded %s to YouTube\n", id)
 }
 
-func handleSmallCommand() {
+func HandleSmall() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: starchive small <id>")
 		fmt.Println("Example: starchive small abc123")
