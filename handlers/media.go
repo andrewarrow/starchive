@@ -577,4 +577,59 @@ func HandlePodpapyrus() {
 	}
 	
 	fmt.Printf("Successfully updated summaries index with new item\n")
+	
+	// Generate homepage HTML using homepage.html template
+	fmt.Printf("Generating homepage HTML for main page...\n")
+	homepageTmpl, err := template.ParseFiles("./templates/homepage.html")
+	if err != nil {
+		fmt.Printf("Error parsing homepage template: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Use a string builder to capture the homepage HTML
+	var homepageHTML strings.Builder
+	if err := homepageTmpl.Execute(&homepageHTML, templateData); err != nil {
+		fmt.Printf("Error executing homepage template: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Successfully generated homepage HTML\n")
+	
+	// Read the current index.html file
+	homepageIndexPath := "../andrewarrow.dev/podpapyrus/index.html"
+	homepageIndexContent, err := os.ReadFile(homepageIndexPath)
+	if err != nil {
+		fmt.Printf("Error reading homepage index file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Find the "<!-- recent 3 -->" marker and the grid div after it
+	homepageMarker := "<!-- recent 3 -->"
+	gridStart := "<div class=\"grid md:grid-cols-3 gap-8 mb-12\">"
+	homepageIndexStr := string(homepageIndexContent)
+	homepageMarkerIndex := strings.Index(homepageIndexStr, homepageMarker)
+	if homepageMarkerIndex == -1 {
+		fmt.Printf("Error: Could not find '<!-- recent 3 -->' marker in homepage index.html\n")
+		os.Exit(1)
+	}
+	
+	gridStartIndex := strings.Index(homepageIndexStr[homepageMarkerIndex:], gridStart)
+	if gridStartIndex == -1 {
+		fmt.Printf("Error: Could not find grid div after marker in homepage index.html\n")
+		os.Exit(1)
+	}
+	gridStartIndex += homepageMarkerIndex + len(gridStart)
+	
+	// Insert the new item HTML at the beginning of the grid, right after the opening div
+	beforeGrid := homepageIndexStr[:gridStartIndex]
+	afterGrid := homepageIndexStr[gridStartIndex:]
+	newHomepageContent := beforeGrid + "\n          " + homepageHTML.String() + "\n          " + afterGrid
+	
+	// Write the updated content back to index.html
+	if err := os.WriteFile(homepageIndexPath, []byte(newHomepageContent), 0644); err != nil {
+		fmt.Printf("Error writing updated homepage index file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Successfully updated homepage index with new item\n")
 }
