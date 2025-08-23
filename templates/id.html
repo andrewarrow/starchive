@@ -6,7 +6,23 @@
     <title>{{ .Title }} PodPapyrus</title>
     <link rel="icon" type="image/png" href="../logo256.png" />
     <link rel="apple-touch-icon" href="../logo256.png" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://podpapyrus.com/" />
+    <meta property="og:title" content="PodPapyrus is a way to read your favorite podcasts." />
+    <meta property="og:description" content="PodPapyrus is a way to read your favorite podcasts." />
+    <meta property="og:image" content="../images/{{.Id}}.jpg" />
+          
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://podpapyrus.com/" />
+    <meta property="twitter:title" content="PodPapyrus is a way to read your favorite podcasts." />
+    <meta property="twitter:description" content="PodPapyrus is a way to read your favorite podcasts." />
+    <meta property="twitter:image" content="../images/{{.Id}}.jpg" />
+    
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
   </head>
   <body class="bg-gray-900 text-gray-100">
     <!-- Navigation -->
