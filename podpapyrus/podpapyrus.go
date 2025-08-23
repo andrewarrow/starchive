@@ -351,184 +351,24 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	fmt.Printf("[Podpapyrus] Successfully created HTML file: %s\n", outputPath)
 	fmt.Printf("[Podpapyrus] Successfully copied image to: %s\n", imgDestPath)
 
-	// Read the created HTML file and return it
-	htmlContent, err := os.ReadFile(outputPath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading created HTML file: %v", err)
-	}
-
-	return &ProcessingResult{
-		HasContent: true,
-		Content:    string(htmlContent),
-		VideoId:    videoId,
-	}, nil
-}
-
-func ProcessCommandLine(videoId string, basePath string) error {
-	// Get YouTube cookie file
-	cookieFile := media.GetCookieFile("youtube")
-
-	// Download thumbnail and subtitles only
-	fmt.Printf("Downloading thumbnail and subtitles for %s...\n", videoId)
-
-	if err := media.DownloadYouTubeThumbnail(videoId, cookieFile); err != nil {
-		return fmt.Errorf("error downloading thumbnail: %v", err)
-	}
-
-	if err := media.DownloadYouTubeSubtitles(videoId, cookieFile); err != nil {
-		return fmt.Errorf("error downloading subtitles: %v", err)
-	}
-
-	fmt.Printf("Successfully downloaded thumbnail and subtitles for %s\n", videoId)
-
-	// Check if txt file was created by VTT parsing
-	txtPath := fmt.Sprintf("./data/%s.txt", videoId)
-	if _, err := os.Stat(txtPath); err != nil {
-		return fmt.Errorf("text file was not created from VTT parsing: %v", err)
-	}
-	fmt.Printf("Text file created: %s\n", txtPath)
-
-	// Read the text file content
-	textContent, err := os.ReadFile(txtPath)
-	if err != nil {
-		return fmt.Errorf("error reading text file: %v", err)
-	}
-
-	// Download and read JSON metadata to get title
-	jsonPath := fmt.Sprintf("./data/%s.json", videoId)
-	if err := media.DownloadYouTubeJSON(videoId, cookieFile); err != nil {
-		return fmt.Errorf("error downloading JSON metadata: %v", err)
-	}
-
-	jsonContent, err := os.ReadFile(jsonPath)
-	if err != nil {
-		return fmt.Errorf("error reading JSON metadata: %v", err)
-	}
-
-	var metadata map[string]interface{}
-	if err := json.Unmarshal(jsonContent, &metadata); err != nil {
-		return fmt.Errorf("error parsing JSON metadata: %v", err)
-	}
-
-	title, ok := metadata["title"].(string)
-	if !ok {
-		return fmt.Errorf("could not extract title from metadata")
-	}
-
-	// Generate summary using claude CLI
-	fmt.Printf("Generating summary using claude CLI...\n")
-	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
-	summaryOutput, err := summaryCmd.Output()
-	if err != nil {
-		return fmt.Errorf("error generating summary: %v", err)
-	}
-	summary := string(summaryOutput)
-
-	// Generate bullets using claude CLI
-	fmt.Printf("Generating bullets using claude CLI...\n")
-	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
-	bulletsOutput, err := bulletsCmd.Output()
-	if err != nil {
-		return fmt.Errorf("error generating bullets: %v", err)
-	}
-	bullets := string(bulletsOutput)
-
-	// Process the text content into paragraphs
-	paragraphs := ProcessTranscriptText(string(textContent))
-
-	// Extract short summary (40-50 words)
-	shortSummary := ExtractShortSummary(summary, 45)
-
-	// Prepare template data
-	templateData := struct {
-		Title      string
-		Id         string
-		Text       string
-		Summary    template.HTML
-		Short      template.HTML
-		Bullets    template.HTML
-		Paragraphs []template.HTML
-	}{
-		Title:      title,
-		Id:         videoId,
-		Text:       string(textContent),
-		Summary:    template.HTML(summary),
-		Short:      template.HTML(StripHTMLTags(shortSummary)),
-		Bullets:    template.HTML(bullets),
-		Paragraphs: paragraphs,
-	}
-
-	// Parse template
-	tmpl, err := template.ParseFiles("./templates/id.html")
-	if err != nil {
-		return fmt.Errorf("error parsing template: %v", err)
-	}
-
-	// Ensure output directory exists
-	outputDir := filepath.Join(basePath, "summaries")
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("error creating output directory: %v", err)
-	}
-
-	// Create output file
-	outputPath := filepath.Join(outputDir, videoId+".html")
-	outputFile, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("error creating output file: %v", err)
-	}
-	defer outputFile.Close()
-
-	// Execute template
-	if err := tmpl.Execute(outputFile, templateData); err != nil {
-		return fmt.Errorf("error executing template: %v", err)
-	}
-
-	// Copy thumbnail image to the images directory
-	imgSourcePath := fmt.Sprintf("./data/%s.jpg", videoId)
-	imgDir := filepath.Join(basePath, "images")
-	if err := os.MkdirAll(imgDir, 0755); err != nil {
-		return fmt.Errorf("error creating images directory: %v", err)
-	}
-
-	imgDestPath := filepath.Join(imgDir, videoId+".jpg")
-	sourceFile, err := os.Open(imgSourcePath)
-	if err != nil {
-		return fmt.Errorf("error opening source image: %v", err)
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(imgDestPath)
-	if err != nil {
-		return fmt.Errorf("error creating destination image: %v", err)
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("error copying image: %v", err)
-	}
-
-	fmt.Printf("Successfully created HTML file: %s\n", outputPath)
-	fmt.Printf("Successfully copied image to: %s\n", imgDestPath)
-
 	// Generate item HTML using item.html template
-	fmt.Printf("Generating item HTML for summaries list...\n")
+	fmt.Printf("[Podpapyrus] Generating item HTML for summaries list...\n")
 	itemTmpl, err := template.ParseFiles("./templates/item.html")
 	if err != nil {
-		return fmt.Errorf("error parsing item template: %v", err)
+		return nil, fmt.Errorf("error parsing item template: %v", err)
 	}
 
 	// Use a string builder to capture the item HTML
 	var itemHTML strings.Builder
 	if err := itemTmpl.Execute(&itemHTML, templateData); err != nil {
-		return fmt.Errorf("error executing item template: %v", err)
+		return nil, fmt.Errorf("error executing item template: %v", err)
 	}
 
 	// Read the current summaries/index.html
 	indexPath := filepath.Join(basePath, "summaries", "index.html")
 	indexContent, err := os.ReadFile(indexPath)
 	if err != nil {
-		return fmt.Errorf("error reading index file: %v", err)
+		return nil, fmt.Errorf("error reading index file: %v", err)
 	}
 
 	// Find the "<!-- top of list -->" marker and insert the new item after it
@@ -536,7 +376,7 @@ func ProcessCommandLine(videoId string, basePath string) error {
 	indexStr := string(indexContent)
 	markerIndex := strings.Index(indexStr, marker)
 	if markerIndex == -1 {
-		return fmt.Errorf("could not find '<!-- top of list -->' marker in index.html")
+		return nil, fmt.Errorf("could not find '<!-- top of list -->' marker in index.html")
 	}
 
 	// Insert the new item HTML after the marker
@@ -546,31 +386,31 @@ func ProcessCommandLine(videoId string, basePath string) error {
 
 	// Write the updated content back to index.html
 	if err := os.WriteFile(indexPath, []byte(newIndexContent), 0644); err != nil {
-		return fmt.Errorf("error writing updated index file: %v", err)
+		return nil, fmt.Errorf("error writing updated index file: %v", err)
 	}
 
-	fmt.Printf("Successfully updated summaries index with new item\n")
+	fmt.Printf("[Podpapyrus] Successfully updated summaries index with new item\n")
 
 	// Generate homepage HTML using homepage.html template
-	fmt.Printf("Generating homepage HTML for main page...\n")
+	fmt.Printf("[Podpapyrus] Generating homepage HTML for main page...\n")
 	homepageTmpl, err := template.ParseFiles("./templates/homepage.html")
 	if err != nil {
-		return fmt.Errorf("error parsing homepage template: %v", err)
+		return nil, fmt.Errorf("error parsing homepage template: %v", err)
 	}
 
 	// Use a string builder to capture the homepage HTML
 	var homepageHTML strings.Builder
 	if err := homepageTmpl.Execute(&homepageHTML, templateData); err != nil {
-		return fmt.Errorf("error executing homepage template: %v", err)
+		return nil, fmt.Errorf("error executing homepage template: %v", err)
 	}
 
-	fmt.Printf("Successfully generated homepage HTML\n")
+	fmt.Printf("[Podpapyrus] Successfully generated homepage HTML\n")
 
 	// Read the current index.html file
 	homepageIndexPath := filepath.Join(basePath, "index.html")
 	homepageIndexContent, err := os.ReadFile(homepageIndexPath)
 	if err != nil {
-		return fmt.Errorf("error reading homepage index file: %v", err)
+		return nil, fmt.Errorf("error reading homepage index file: %v", err)
 	}
 
 	// Find the "<!-- recent 3 -->" marker and the grid div after it
@@ -579,12 +419,12 @@ func ProcessCommandLine(videoId string, basePath string) error {
 	homepageIndexStr := string(homepageIndexContent)
 	homepageMarkerIndex := strings.Index(homepageIndexStr, homepageMarker)
 	if homepageMarkerIndex == -1 {
-		return fmt.Errorf("could not find '<!-- recent 3 -->' marker in homepage index.html")
+		return nil, fmt.Errorf("could not find '<!-- recent 3 -->' marker in homepage index.html")
 	}
 
 	gridStartIndex := strings.Index(homepageIndexStr[homepageMarkerIndex:], gridStart)
 	if gridStartIndex == -1 {
-		return fmt.Errorf("could not find grid div after marker in homepage index.html")
+		return nil, fmt.Errorf("could not find grid div after marker in homepage index.html")
 	}
 	gridStartIndex += homepageMarkerIndex + len(gridStart)
 
@@ -596,7 +436,7 @@ func ProcessCommandLine(videoId string, basePath string) error {
 	gridEndTag := "</div>"
 	gridEndIndex := strings.Index(afterGridStart, gridEndTag)
 	if gridEndIndex == -1 {
-		return fmt.Errorf("could not find end of grid div in homepage index.html")
+		return nil, fmt.Errorf("could not find end of grid div in homepage index.html")
 	}
 
 	existingGridContent := afterGridStart[:gridEndIndex]
@@ -649,9 +489,26 @@ func ProcessCommandLine(videoId string, basePath string) error {
 
 	// Write the updated content back to index.html
 	if err := os.WriteFile(homepageIndexPath, []byte(newHomepageContent), 0644); err != nil {
-		return fmt.Errorf("error writing updated homepage index file: %v", err)
+		return nil, fmt.Errorf("error writing updated homepage index file: %v", err)
 	}
 
-	fmt.Printf("Successfully updated homepage index with new item\n")
-	return nil
+	fmt.Printf("[Podpapyrus] Successfully updated homepage index with new item\n")
+
+	// Read the created HTML file and return it
+	htmlContent, err := os.ReadFile(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading created HTML file: %v", err)
+	}
+
+	return &ProcessingResult{
+		HasContent: true,
+		Content:    string(htmlContent),
+		VideoId:    videoId,
+	}, nil
 }
+
+func ProcessCommandLine(videoId string, basePath string) error {
+	_, err := ProcessVideo(videoId, basePath)
+	return err
+}
+
