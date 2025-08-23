@@ -20,7 +20,6 @@ var (
 	poTokenTime   time.Time
 )
 
-const podpapyrusBasePath = "./data/podpapyrus"
 
 // WriteCookiesFile creates a Netscape format cookies file for a specific platform
 func WriteCookiesFile(cookiesData interface{}, platform string) error {
@@ -463,7 +462,7 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 
 	// Handle podpapyrus mode
 	if mode == "podpapyrus" {
-		result, err := podpapyrus.ProcessVideo(videoId, podpapyrusBasePath)
+		result, err := podpapyrus.ProcessVideo(videoId, podpapyrus.WebBasePath)
 		if err != nil {
 			fmt.Printf("[Starchive] Error processing video: %v\n", err)
 			http.Error(w, fmt.Sprintf("Error processing video: %v", err), http.StatusInternalServerError)

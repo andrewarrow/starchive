@@ -15,9 +15,6 @@ import (
 	"starchive/util"
 )
 
-const podpapyrusBasePath = "../andrewarrow.dev/podpapyrus"
-
-//const podpapyrusBasePath = "./data/podpapyrus"
 
 
 func HandleDl() {
@@ -335,7 +332,7 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 
-	if err := podpapyrus.ProcessCommandLine(id, podpapyrusBasePath); err != nil {
+	if err := podpapyrus.ProcessCommandLine(id, podpapyrus.HandlerBasePath); err != nil {
 		fmt.Printf("Error processing video: %v\n", err)
 		os.Exit(1)
 	}

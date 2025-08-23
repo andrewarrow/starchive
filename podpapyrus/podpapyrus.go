@@ -20,6 +20,11 @@ var (
 	processingMutex  sync.RWMutex
 )
 
+const (
+	WebBasePath     = "./data/podpapyrus"
+	HandlerBasePath = "../andrewarrow.dev/podpapyrus"
+)
+
 type Config struct {
 	BasePath string
 }
