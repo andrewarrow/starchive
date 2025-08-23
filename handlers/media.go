@@ -428,5 +428,35 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 	
+	// Copy thumbnail image to the images directory
+	imgSourcePath := fmt.Sprintf("./data/%s.jpg", id)
+	imgDir := "../andrewarrow.dev/podpapyrus/images"
+	if err := os.MkdirAll(imgDir, 0755); err != nil {
+		fmt.Printf("Error creating images directory: %v\n", err)
+		os.Exit(1)
+	}
+	
+	imgDestPath := filepath.Join(imgDir, id+".jpg")
+	sourceFile, err := os.Open(imgSourcePath)
+	if err != nil {
+		fmt.Printf("Error opening source image: %v\n", err)
+		os.Exit(1)
+	}
+	defer sourceFile.Close()
+	
+	destFile, err := os.Create(imgDestPath)
+	if err != nil {
+		fmt.Printf("Error creating destination image: %v\n", err)
+		os.Exit(1)
+	}
+	defer destFile.Close()
+	
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		fmt.Printf("Error copying image: %v\n", err)
+		os.Exit(1)
+	}
+	
 	fmt.Printf("Successfully created HTML file: %s\n", outputPath)
+	fmt.Printf("Successfully copied image to: %s\n", imgDestPath)
 }

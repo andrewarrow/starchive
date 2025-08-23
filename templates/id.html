@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trump Says BAN MAIL IN BALLOTS Ahead Of Midterms - PodPapyrus</title>
+    <title>{{ .Title }} PodPapyrus</title>
     <link rel="icon" type="image/png" href="../logo256.png" />
     <link rel="apple-touch-icon" href="../logo256.png" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -30,7 +30,7 @@
     <section class="pt-20 pb-8 bg-gradient-to-br from-gray-800 to-gray-900">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-8">
-          <img src="../images/1.jpg" alt="Trump Says BAN MAIL IN BALLOTS Ahead Of Midterms" class="w-48 h-32 object-cover rounded-lg mx-auto mb-6" />
+          <img src="../images/{{.Id}}.jpg" alt="{{ .Title }}" class="w-48 h-32 object-cover rounded-lg mx-auto mb-6" />
           <span class="text-blue-400 text-sm font-medium">Great Pods</span>
           <h1 class="text-3xl md:text-4xl font-bold text-gray-100 mt-2 mb-4">
             {{ .Title }}
