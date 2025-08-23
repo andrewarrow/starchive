@@ -125,3 +125,20 @@ document.getElementById('copyTranscriptButton').addEventListener('click', () => 
     }
   });
 });
+
+document.getElementById('podpapyrusButton').addEventListener('click', () => {
+  console.log('[Starchive] Podpapyrus button clicked');
+  const button = document.getElementById('podpapyrusButton');
+  const modeText = document.getElementById('modeText');
+  
+  // Toggle pressed state
+  if (button.classList.contains('pressed')) {
+    button.classList.remove('pressed');
+    modeText.textContent = 'Mode: default';
+    console.log('[Starchive] Switched to default mode');
+  } else {
+    button.classList.add('pressed');
+    modeText.textContent = 'Mode: podpapyrus';
+    console.log('[Starchive] Switched to podpapyrus mode');
+  }
+});
