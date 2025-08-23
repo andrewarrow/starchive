@@ -16,7 +16,7 @@ import (
 	"starchive/util"
 )
 
-func processTranscriptText(rawText string) []string {
+func processTranscriptText(rawText string) []template.HTML {
 	// Remove "Language: en" prefix if present
 	text := regexp.MustCompile(`^Language: \w+\s*`).ReplaceAllString(rawText, "")
 	
@@ -30,7 +30,7 @@ func processTranscriptText(rawText string) []string {
 	// Split into sentences and group into paragraphs
 	sentences := regexp.MustCompile(`[.!?]+\s+`).Split(text, -1)
 	
-	var paragraphs []string
+	var paragraphs []template.HTML
 	var currentParagraph []string
 	sentenceCount := 0
 	
@@ -45,7 +45,7 @@ func processTranscriptText(rawText string) []string {
 		
 		// Create a new paragraph every 4-6 sentences
 		if sentenceCount >= 4 && len(currentParagraph) > 0 {
-			paragraphs = append(paragraphs, strings.Join(currentParagraph, ". ")+".")
+			paragraphs = append(paragraphs, template.HTML(strings.Join(currentParagraph, ". ")+"."))
 			currentParagraph = []string{}
 			sentenceCount = 0
 		}
@@ -53,7 +53,7 @@ func processTranscriptText(rawText string) []string {
 	
 	// Add any remaining sentences as a final paragraph
 	if len(currentParagraph) > 0 {
-		paragraphs = append(paragraphs, strings.Join(currentParagraph, ". ")+".")
+		paragraphs = append(paragraphs, template.HTML(strings.Join(currentParagraph, ". ")+"."))
 	}
 	
 	return paragraphs
@@ -432,6 +432,16 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 	
+	// Generate summary using claude CLI
+	fmt.Printf("Generating summary using claude CLI...\n")
+	summaryCmd := exec.Command("claude", "-p", "summarize this text: " + string(textContent))
+	summaryOutput, err := summaryCmd.Output()
+	if err != nil {
+		fmt.Printf("Error generating summary: %v\n", err)
+		os.Exit(1)
+	}
+	summary := string(summaryOutput)
+	
 	// Process the text content into paragraphs
 	paragraphs := processTranscriptText(string(textContent))
 	
@@ -440,11 +450,13 @@ func HandlePodpapyrus() {
 		Title      string
 		Id         string
 		Text       string
-		Paragraphs []string
+		Summary    string
+		Paragraphs []template.HTML
 	}{
 		Title:      title,
 		Id:         id,
 		Text:       string(textContent),
+		Summary:    summary,
 		Paragraphs: paragraphs,
 	}
 	
