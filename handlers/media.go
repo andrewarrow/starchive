@@ -332,7 +332,7 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 
-	if err := podpapyrus.ProcessCommandLine(id, podpapyrus.HandlerBasePath); err != nil {
+	if err := podpapyrus.ProcessCommandLine(id, podpapyrus.BasePath); err != nil {
 		fmt.Printf("Error processing video: %v\n", err)
 		os.Exit(1)
 	}

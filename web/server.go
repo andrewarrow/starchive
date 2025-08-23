@@ -462,7 +462,7 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 
 	// Handle podpapyrus mode
 	if mode == "podpapyrus" {
-		result, err := podpapyrus.ProcessVideo(videoId, podpapyrus.WebBasePath)
+		result, err := podpapyrus.ProcessVideo(videoId, podpapyrus.BasePath)
 		if err != nil {
 			fmt.Printf("[Starchive] Error processing video: %v\n", err)
 			http.Error(w, fmt.Sprintf("Error processing video: %v", err), http.StatusInternalServerError)

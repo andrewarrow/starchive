@@ -20,10 +20,8 @@ var (
 	processingMutex  sync.RWMutex
 )
 
-const (
-	WebBasePath     = "./data/podpapyrus"
-	HandlerBasePath = "../andrewarrow.dev/podpapyrus"
-)
+// const BasePath = "./data/podpapyrus"
+const BasePath = "../andrewarrow.dev/podpapyrus"
 
 type Config struct {
 	BasePath string
@@ -162,12 +160,12 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	txtFilePath := fmt.Sprintf("./data/%s.txt", videoId)
 	if _, err := os.Stat(txtFilePath); err == nil {
 		fmt.Printf("[Podpapyrus] Transcript exists for %s, checking if processing needed\n", videoId)
-		
+
 		// Check if this video is already being processed
 		processingMutex.RLock()
 		isProcessing := processingVideos[videoId]
 		processingMutex.RUnlock()
-		
+
 		if isProcessing {
 			// Transcript exists but HTML is being processed - show green highlight with transcript
 			fmt.Printf("[Podpapyrus] Video %s is being processed but transcript exists, showing green\n", videoId)
