@@ -620,10 +620,65 @@ func HandlePodpapyrus() {
 	}
 	gridStartIndex += homepageMarkerIndex + len(gridStart)
 	
-	// Insert the new item HTML at the beginning of the grid, right after the opening div
+	// Parse the existing grid items to maintain exactly 3 items
 	beforeGrid := homepageIndexStr[:gridStartIndex]
-	afterGrid := homepageIndexStr[gridStartIndex:]
-	newHomepageContent := beforeGrid + "\n          " + homepageHTML.String() + "\n          " + afterGrid
+	afterGridStart := homepageIndexStr[gridStartIndex:]
+	
+	// Find the end of the grid div to extract existing items
+	gridEndTag := "</div>"
+	gridEndIndex := strings.Index(afterGridStart, gridEndTag)
+	if gridEndIndex == -1 {
+		fmt.Printf("Error: Could not find end of grid div in homepage index.html\n")
+		os.Exit(1)
+	}
+	
+	existingGridContent := afterGridStart[:gridEndIndex]
+	afterGridEnd := afterGridStart[gridEndIndex:]
+	
+	// Parse existing items by looking for <a href="./summaries/ patterns
+	itemPattern := `<a href="./summaries/[^"]+\.html"`
+	re := regexp.MustCompile(itemPattern)
+	matches := re.FindAllStringIndex(existingGridContent, -1)
+	
+	var existingItems []string
+	if len(matches) > 0 {
+		// Extract first 2 items to keep (making room for the new item at the beginning)
+		for i, match := range matches {
+			if i >= 2 {
+				break // Only keep first 2 items
+			}
+			
+			// Find the end of this item (next <a tag or end of content)
+			itemStart := match[0]
+			var itemEnd int
+			if i+1 < len(matches) {
+				itemEnd = matches[i+1][0]
+			} else {
+				itemEnd = len(existingGridContent)
+			}
+			
+			// Find the closing </a> tag for this item
+			itemContent := existingGridContent[itemStart:itemEnd]
+			closingTagIndex := strings.LastIndex(itemContent, "</a>")
+			if closingTagIndex != -1 {
+				existingItems = append(existingItems, strings.TrimSpace(existingGridContent[itemStart:itemStart+closingTagIndex+4]))
+			}
+		}
+	}
+	
+	// Build the new grid content with exactly 3 items: new item + first 2 existing items
+	var newGridContent strings.Builder
+	newGridContent.WriteString("\n          ")
+	newGridContent.WriteString(homepageHTML.String())
+	newGridContent.WriteString("\n          ")
+	
+	for _, item := range existingItems {
+		newGridContent.WriteString("\n          ")
+		newGridContent.WriteString(item)
+		newGridContent.WriteString("\n          ")
+	}
+	
+	newHomepageContent := beforeGrid + newGridContent.String() + afterGridEnd
 	
 	// Write the updated content back to index.html
 	if err := os.WriteFile(homepageIndexPath, []byte(newHomepageContent), 0644); err != nil {
