@@ -35,7 +35,7 @@
       width: 32px;
       height: 32px;
       padding: 0;
-      margin-bottom: 12px;
+      margin-bottom: 0;
       margin-right: 8px;
       display: inline-flex;
       align-items: center;
@@ -47,6 +47,8 @@
       color: #ffffff;
       transition: all 0.2s ease;
       font-size: 16px;
+      box-sizing: border-box;
+      vertical-align: top;
     }
     
     .icon-button:hover {
@@ -57,6 +59,13 @@
     .icon-button:active {
       transform: translateY(0);
       background: #252525;
+    }
+    
+    .icon-button img {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      display: block;
     }
     
     button:hover {
@@ -179,7 +188,8 @@
     <h1>Starchive</h1>
   </div>
   <button id="fetchButton" class="icon-button" title="show used space">📁</button>
-  <button id="copyTranscriptButton">📋 Copy Transcript</button>
+  <button id="copyTranscriptButton" class="icon-button" title="copy transcript">📋</button>
+  <button id="podpapyrusButton" class="icon-button" title="podpapyrus mode"><img src="podpapyrus.png" alt="podpapyrus"></button>
   
   <div id="diskUsageContainer" class="disk-usage-container">
     <div class="disk-usage-title">Disk Usage</div>

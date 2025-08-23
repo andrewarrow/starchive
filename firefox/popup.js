@@ -40,7 +40,18 @@ function updateDiskUsageUI(diskUsage) {
 }
 
 document.getElementById('fetchButton').addEventListener('click', () => {
-  console.log('[Starchive] Fetch button clicked in popup');
+  console.log('[Starchive] Disk icon clicked - toggling disk usage visibility');
+  const container = document.getElementById('diskUsageContainer');
+  
+  // If already visible, just toggle it
+  if (container.classList.contains('visible')) {
+    container.classList.remove('visible');
+    console.log('[Starchive] Hiding disk usage container');
+    return;
+  }
+  
+  // If not visible, fetch data and show it
+  console.log('[Starchive] Fetching disk data to show usage');
   browser.runtime.sendMessage({ type: "fetchData" }, (response) => {
     console.log('[Starchive] Received response in popup:', response);
     const resultDiv = document.getElementById('result');
@@ -48,26 +59,23 @@ document.getElementById('fetchButton').addEventListener('click', () => {
     if (response && response.error) {
       console.log('[Starchive] Error in response:', response.error);
       resultDiv.textContent = `Error: ${response.error}`;
-      // Hide disk usage container on error
-      document.getElementById('diskUsageContainer').classList.remove('visible');
+      container.classList.remove('visible');
     } else if (response) {
       console.log('[Starchive] Processing response, diskUsage:', response.diskUsage);
-      
-      // Show server status in result div
-      resultDiv.textContent = `Status: ${response.status}`;
       
       if (response.diskUsage) {
         console.log('[Starchive] Found diskUsage object:', response.diskUsage);
         updateDiskUsageUI(response.diskUsage);
+        resultDiv.textContent = '';
       } else {
         console.log('[Starchive] No diskUsage found in response');
-        resultDiv.textContent += `\nNo disk usage data available`;
-        document.getElementById('diskUsageContainer').classList.remove('visible');
+        resultDiv.textContent = `No disk usage data available`;
+        container.classList.remove('visible');
       }
     } else {
       console.log('[Starchive] No response received');
       resultDiv.textContent = 'No response received';
-      document.getElementById('diskUsageContainer').classList.remove('visible');
+      container.classList.remove('visible');
     }
   });
 });
