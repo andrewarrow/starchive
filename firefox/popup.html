@@ -62,13 +62,13 @@
     }
     
     .icon-button.pressed {
-      background: #1a7a1a;
+      background: #1a1a1a;
       transform: translateY(1px);
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
     }
     
     .icon-button.pressed:hover {
-      background: #1e8e1e;
+      background: #2a2a2a;
       transform: translateY(1px);
     }
     
@@ -77,6 +77,16 @@
       height: 16px;
       object-fit: contain;
       display: block;
+    }
+    
+    .buttons-container {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    
+    .buttons-container .icon-button {
+      margin-right: 0;
     }
     
     button:hover {
@@ -208,9 +218,11 @@
     <h1>Starchive</h1>
   </div>
   <div class="mode-text" id="modeText">Mode: default</div>
-  <button id="fetchButton" class="icon-button" title="show used space">📁</button>
-  <button id="copyTranscriptButton" class="icon-button" title="copy transcript">📋</button>
-  <button id="podpapyrusButton" class="icon-button" title="podpapyrus mode"><img src="podpapyrus.png" alt="podpapyrus"></button>
+  <div class="buttons-container">
+    <button id="fetchButton" class="icon-button" title="show used space">📁</button>
+    <button id="copyTranscriptButton" class="icon-button" title="copy transcript">📋</button>
+    <button id="podpapyrusButton" class="icon-button" title="podpapyrus mode"><img src="podpapyrus.png" alt="podpapyrus"></button>
+  </div>
   
   <div id="diskUsageContainer" class="disk-usage-container">
     <div class="disk-usage-title">Disk Usage</div>
