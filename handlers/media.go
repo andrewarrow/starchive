@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"os/exec"
@@ -349,9 +350,83 @@ func HandlePodpapyrus() {
 	
 	// Check if txt file was created by VTT parsing
 	txtPath := fmt.Sprintf("./data/%s.txt", id)
-	if _, err := os.Stat(txtPath); err == nil {
-		fmt.Printf("Text file created: %s\n", txtPath)
-	} else {
-		fmt.Printf("Warning: Text file was not created from VTT parsing\n")
+	if _, err := os.Stat(txtPath); err != nil {
+		fmt.Printf("Error: Text file was not created from VTT parsing: %v\n", err)
+		os.Exit(1)
 	}
+	fmt.Printf("Text file created: %s\n", txtPath)
+	
+	// Read the text file content
+	textContent, err := os.ReadFile(txtPath)
+	if err != nil {
+		fmt.Printf("Error reading text file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Download and read JSON metadata to get title
+	jsonPath := fmt.Sprintf("./data/%s.json", id)
+	if err := media.DownloadYouTubeJSON(id, cookieFile); err != nil {
+		fmt.Printf("Error downloading JSON metadata: %v\n", err)
+		os.Exit(1)
+	}
+	
+	jsonContent, err := os.ReadFile(jsonPath)
+	if err != nil {
+		fmt.Printf("Error reading JSON metadata: %v\n", err)
+		os.Exit(1)
+	}
+	
+	var metadata map[string]interface{}
+	if err := json.Unmarshal(jsonContent, &metadata); err != nil {
+		fmt.Printf("Error parsing JSON metadata: %v\n", err)
+		os.Exit(1)
+	}
+	
+	title, ok := metadata["title"].(string)
+	if !ok {
+		fmt.Printf("Error: Could not extract title from metadata\n")
+		os.Exit(1)
+	}
+	
+	// Prepare template data
+	templateData := struct {
+		Title string
+		Id    string
+		Text  string
+	}{
+		Title: title,
+		Id:    id,
+		Text:  string(textContent),
+	}
+	
+	// Parse template
+	tmpl, err := template.ParseFiles("./templates/id.html")
+	if err != nil {
+		fmt.Printf("Error parsing template: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Ensure output directory exists
+	outputDir := "../andrewarrow.dev/podpapyrus/summaries"
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Printf("Error creating output directory: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Create output file
+	outputPath := filepath.Join(outputDir, id+".html")
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		fmt.Printf("Error creating output file: %v\n", err)
+		os.Exit(1)
+	}
+	defer outputFile.Close()
+	
+	// Execute template
+	if err := tmpl.Execute(outputFile, templateData); err != nil {
+		fmt.Printf("Error executing template: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Successfully created HTML file: %s\n", outputPath)
 }

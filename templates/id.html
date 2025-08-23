@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trump Says BAN MAIL IN BALLOTS Ahead Of Midterms - PodPapyrus</title>
+    <link rel="icon" type="image/png" href="../logo256.png" />
+    <link rel="apple-touch-icon" href="../logo256.png" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body class="bg-gray-900 text-gray-100">
+    <!-- Navigation -->
+    <nav class="bg-gray-800 shadow-lg fixed w-full z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+            <div class="flex-shrink-0 flex items-center">
+              <a href="../index.html" class="text-2xl font-bold text-blue-400">
+              <img src="../logo256.png" alt="PodPapyrus" class="h-8 w-8 mr-3" />
+              </a>
+            </div>
+          </div>
+          <div class="hidden md:flex items-center space-x-8">
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <section class="pt-20 pb-8 bg-gradient-to-br from-gray-800 to-gray-900">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-8">
+          <img src="../images/1.jpg" alt="Trump Says BAN MAIL IN BALLOTS Ahead Of Midterms" class="w-48 h-32 object-cover rounded-lg mx-auto mb-6" />
+          <span class="text-blue-400 text-sm font-medium">Great Pods</span>
+          <h1 class="text-3xl md:text-4xl font-bold text-gray-100 mt-2 mb-4">
+            {{ .Title }}
+          </h1>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary Content -->
+    <section class="py-8 bg-gray-900">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="bg-gray-800 rounded-lg p-8 border border-gray-700">
+          <div class="prose prose-invert max-w-none">
+            {{ .Text }}
+          </div>
+        </div>
+
+        <div class="mt-8">
+          <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <a href="../summaries/index.html" class="border-2 border-blue-400 text-blue-400 px-6 py-2 rounded-lg font-medium hover:bg-blue-600 hover:text-white transition duration-300 text-center">
+              ← All Summaries
+            </a>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+              <a href="https://youtube.com/watch?v={{.Id}}" target="_blank" class="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition duration-300 text-center">
+                Watch on YouTube
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-black text-white py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center">
+          <p class="text-gray-400">&copy; 2024 PodPapyrus. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
