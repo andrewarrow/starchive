@@ -8,12 +8,56 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"starchive/media"
 	"starchive/util"
 )
+
+func processTranscriptText(rawText string) []string {
+	// Remove "Language: en" prefix if present
+	text := regexp.MustCompile(`^Language: \w+\s*`).ReplaceAllString(rawText, "")
+	
+	// Replace [&nbsp;__&nbsp;] with [censored]
+	text = regexp.MustCompile(`\[&nbsp;__&nbsp;\]`).ReplaceAllString(text, "[censored]")
+	
+	// Clean up extra whitespace
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	text = strings.TrimSpace(text)
+	
+	// Split into sentences and group into paragraphs
+	sentences := regexp.MustCompile(`[.!?]+\s+`).Split(text, -1)
+	
+	var paragraphs []string
+	var currentParagraph []string
+	sentenceCount := 0
+	
+	for _, sentence := range sentences {
+		sentence = strings.TrimSpace(sentence)
+		if sentence == "" {
+			continue
+		}
+		
+		currentParagraph = append(currentParagraph, sentence)
+		sentenceCount++
+		
+		// Create a new paragraph every 4-6 sentences
+		if sentenceCount >= 4 && len(currentParagraph) > 0 {
+			paragraphs = append(paragraphs, strings.Join(currentParagraph, ". ")+".")
+			currentParagraph = []string{}
+			sentenceCount = 0
+		}
+	}
+	
+	// Add any remaining sentences as a final paragraph
+	if len(currentParagraph) > 0 {
+		paragraphs = append(paragraphs, strings.Join(currentParagraph, ". ")+".")
+	}
+	
+	return paragraphs
+}
 
 func HandleDl() {
 	if len(os.Args) < 3 {
@@ -388,15 +432,20 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 	
+	// Process the text content into paragraphs
+	paragraphs := processTranscriptText(string(textContent))
+	
 	// Prepare template data
 	templateData := struct {
-		Title string
-		Id    string
-		Text  string
+		Title      string
+		Id         string
+		Text       string
+		Paragraphs []string
 	}{
-		Title: title,
-		Id:    id,
-		Text:  string(textContent),
+		Title:      title,
+		Id:         id,
+		Text:       string(textContent),
+		Paragraphs: paragraphs,
 	}
 	
 	// Parse template

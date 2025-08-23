@@ -60,7 +60,9 @@
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="bg-gray-800 rounded-lg p-8 border border-gray-700">
           <div class="prose prose-invert max-w-none">
-            {{ .Text }}
+            {{range .Paragraphs}}
+              <p class="mb-4">{{.}}</p>
+            {{end}}
           </div>
         </div>
 
