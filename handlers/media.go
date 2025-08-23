@@ -532,4 +532,49 @@ func HandlePodpapyrus() {
 	
 	fmt.Printf("Successfully created HTML file: %s\n", outputPath)
 	fmt.Printf("Successfully copied image to: %s\n", imgDestPath)
+	
+	// Generate item HTML using item.html template
+	fmt.Printf("Generating item HTML for summaries list...\n")
+	itemTmpl, err := template.ParseFiles("./templates/item.html")
+	if err != nil {
+		fmt.Printf("Error parsing item template: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Use a string builder to capture the item HTML
+	var itemHTML strings.Builder
+	if err := itemTmpl.Execute(&itemHTML, templateData); err != nil {
+		fmt.Printf("Error executing item template: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Read the current summaries/index.html
+	indexPath := "../andrewarrow.dev/podpapyrus/summaries/index.html"
+	indexContent, err := os.ReadFile(indexPath)
+	if err != nil {
+		fmt.Printf("Error reading index file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Find the "<!-- top of list -->" marker and insert the new item after it
+	marker := "<!-- top of list -->"
+	indexStr := string(indexContent)
+	markerIndex := strings.Index(indexStr, marker)
+	if markerIndex == -1 {
+		fmt.Printf("Error: Could not find '<!-- top of list -->' marker in index.html\n")
+		os.Exit(1)
+	}
+	
+	// Insert the new item HTML after the marker
+	beforeMarker := indexStr[:markerIndex+len(marker)]
+	afterMarker := indexStr[markerIndex+len(marker):]
+	newIndexContent := beforeMarker + "\n          " + itemHTML.String() + afterMarker
+	
+	// Write the updated content back to index.html
+	if err := os.WriteFile(indexPath, []byte(newIndexContent), 0644); err != nil {
+		fmt.Printf("Error writing updated index file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Successfully updated summaries index with new item\n")
 }
