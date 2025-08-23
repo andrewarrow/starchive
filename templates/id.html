@@ -69,8 +69,8 @@
         <!-- Bullets Section -->
         <div class="bg-green-900 rounded-lg p-8 border border-green-700 mb-8">
           <h2 class="text-2xl font-bold text-green-100 mb-4">Key Points</h2>
-          <div class="prose prose-invert max-w-none">
-            <div class="text-green-50">{{ .Bullets }}</div>
+          <div class="prose prose-invert max-w-none prose-li:list-disc prose-ul:list-disc">
+            <div class="text-green-50 [&_ul]:list-disc [&_li]:list-item [&_ul]:ml-6">{{ .Bullets }}</div>
           </div>
         </div>
 
