@@ -16,6 +16,57 @@ import (
 	"starchive/util"
 )
 
+func extractShortSummary(htmlSummary string, wordLimit int) string {
+	// Remove HTML tags temporarily to count words
+	re := regexp.MustCompile(`<[^>]*>`)
+	textOnly := re.ReplaceAllString(htmlSummary, " ")
+	
+	// Split into words
+	words := regexp.MustCompile(`\s+`).Split(strings.TrimSpace(textOnly), -1)
+	
+	if len(words) <= wordLimit {
+		return htmlSummary
+	}
+	
+	// Find the position in the original HTML where we should cut
+	wordCount := 0
+	var result strings.Builder
+	inTag := false
+	
+	for i, char := range htmlSummary {
+		result.WriteRune(char)
+		
+		if char == '<' {
+			inTag = true
+		} else if char == '>' {
+			inTag = false
+		} else if !inTag && (char == ' ' || char == '\t' || char == '\n') {
+			// We're at a word boundary, check if we've reached our limit
+			if wordCount >= wordLimit {
+				// Look ahead to see if we're in the middle of a tag
+				remaining := htmlSummary[i+1:]
+				if strings.Contains(remaining, ">") && strings.Index(remaining, ">") < strings.Index(remaining, "<") {
+					// We're in the middle of a tag, continue until we close it
+					for j := i + 1; j < len(htmlSummary); j++ {
+						result.WriteRune(rune(htmlSummary[j]))
+						if htmlSummary[j] == '>' {
+							break
+						}
+					}
+				}
+				break
+			}
+			
+			// Count the word we just passed
+			if i > 0 && htmlSummary[i-1] != ' ' && htmlSummary[i-1] != '\t' && htmlSummary[i-1] != '\n' {
+				wordCount++
+			}
+		}
+	}
+	
+	return result.String()
+}
+
 func processTranscriptText(rawText string) []template.HTML {
 	// Remove "Language: en" prefix if present
 	text := regexp.MustCompile(`^Language: \w+\s*`).ReplaceAllString(rawText, "")
@@ -455,12 +506,16 @@ func HandlePodpapyrus() {
 	// Process the text content into paragraphs
 	paragraphs := processTranscriptText(string(textContent))
 	
+	// Extract short summary (40-50 words)
+	shortSummary := extractShortSummary(summary, 45)
+	
 	// Prepare template data
 	templateData := struct {
 		Title      string
 		Id         string
 		Text       string
 		Summary    template.HTML
+		Short      template.HTML
 		Bullets    template.HTML
 		Paragraphs []template.HTML
 	}{
@@ -468,6 +523,7 @@ func HandlePodpapyrus() {
 		Id:         id,
 		Text:       string(textContent),
 		Summary:    template.HTML(summary),
+		Short:      template.HTML(shortSummary),
 		Bullets:    template.HTML(bullets),
 		Paragraphs: paragraphs,
 	}
