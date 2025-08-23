@@ -22,6 +22,8 @@ var (
 	storedPOToken string
 	poTokenMutex  sync.RWMutex
 	poTokenTime   time.Time
+	processingVideos = make(map[string]bool)
+	processingMutex  sync.RWMutex
 )
 
 const podpapyrusBasePath = "./data/podpapyrus"
@@ -707,6 +709,32 @@ func handlePodpapyrusMode(w http.ResponseWriter, r *http.Request, videoId string
 		fmt.Printf("[Starchive] Served %d bytes for video %s\n", len(content), videoId)
 		return
 	}
+
+	// Check if this video is already being processed
+	processingMutex.Lock()
+	if processingVideos[videoId] {
+		processingMutex.Unlock()
+		fmt.Printf("[Starchive] Video %s is already being processed, returning waiting message\n", videoId)
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]interface{}{
+			"hasContent": false,
+			"message":    "Video is currently being processed",
+			"videoId":    videoId,
+		}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+	// Mark this video as being processed
+	processingVideos[videoId] = true
+	processingMutex.Unlock()
+
+	// Ensure we clean up the processing flag when done
+	defer func() {
+		processingMutex.Lock()
+		delete(processingVideos, videoId)
+		processingMutex.Unlock()
+		fmt.Printf("[Starchive] Finished processing video %s\n", videoId)
+	}()
 
 	fmt.Printf("[Starchive] HTML file not found, running podpapyrus processing\n")
 
