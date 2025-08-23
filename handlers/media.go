@@ -434,7 +434,7 @@ func HandlePodpapyrus() {
 	
 	// Generate summary using claude CLI
 	fmt.Printf("Generating summary using claude CLI...\n")
-	summaryCmd := exec.Command("claude", "-p", "summarize this text: " + string(textContent))
+	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: " + string(textContent))
 	summaryOutput, err := summaryCmd.Output()
 	if err != nil {
 		fmt.Printf("Error generating summary: %v\n", err)
@@ -444,7 +444,7 @@ func HandlePodpapyrus() {
 	
 	// Generate bullets using claude CLI
 	fmt.Printf("Generating bullets using claude CLI...\n")
-	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text: " + string(textContent))
+	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: " + string(textContent))
 	bulletsOutput, err := bulletsCmd.Output()
 	if err != nil {
 		fmt.Printf("Error generating bullets: %v\n", err)
@@ -460,15 +460,15 @@ func HandlePodpapyrus() {
 		Title      string
 		Id         string
 		Text       string
-		Summary    string
-		Bullets    string
+		Summary    template.HTML
+		Bullets    template.HTML
 		Paragraphs []template.HTML
 	}{
 		Title:      title,
 		Id:         id,
 		Text:       string(textContent),
-		Summary:    summary,
-		Bullets:    bullets,
+		Summary:    template.HTML(summary),
+		Bullets:    template.HTML(bullets),
 		Paragraphs: paragraphs,
 	}
 	
