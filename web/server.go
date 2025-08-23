@@ -710,7 +710,35 @@ func handlePodpapyrusMode(w http.ResponseWriter, r *http.Request, videoId string
 		return
 	}
 
-	// Check if this video is already being processed
+	// Check if transcript (.txt) file exists for green highlight
+	txtFilePath := fmt.Sprintf("./data/%s.txt", videoId)
+	if _, err := os.Stat(txtFilePath); err == nil {
+		fmt.Printf("[Starchive] Transcript exists for %s, checking if processing needed\n", videoId)
+		
+		// Check if this video is already being processed
+		processingMutex.RLock()
+		isProcessing := processingVideos[videoId]
+		processingMutex.RUnlock()
+		
+		if isProcessing {
+			// Transcript exists but HTML is being processed - show green highlight with transcript
+			fmt.Printf("[Starchive] Video %s is being processed but transcript exists, showing green\n", videoId)
+			content, err := os.ReadFile(txtFilePath)
+			if err == nil {
+				w.Header().Set("Content-Type", "application/json")
+				response := map[string]interface{}{
+					"hasContent": true,
+					"content":    string(content),
+					"videoId":    videoId,
+				}
+				json.NewEncoder(w).Encode(response)
+				fmt.Printf("[Starchive] Served transcript (%d bytes) for processing video %s\n", len(content), videoId)
+				return
+			}
+		}
+	}
+
+	// Check if this video is already being processed (for when transcript doesn't exist)
 	processingMutex.Lock()
 	if processingVideos[videoId] {
 		processingMutex.Unlock()
