@@ -3,13 +3,18 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"starchive/media"
 	"starchive/util"
 )
 
@@ -18,6 +23,8 @@ var (
 	poTokenMutex  sync.RWMutex
 	poTokenTime   time.Time
 )
+
+const podpapyrusBasePath = "./data/podpapyrus"
 
 // WriteCookiesFile creates a Netscape format cookies file for a specific platform
 func WriteCookiesFile(cookiesData interface{}, platform string) error {
@@ -450,11 +457,18 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 	}
 
 	videoId := r.URL.Query().Get("id")
-	fmt.Printf("[Starchive] Requested video ID: %s\n", videoId)
+	mode := r.URL.Query().Get("mode")
+	fmt.Printf("[Starchive] Requested video ID: %s, mode: %s\n", videoId, mode)
 	
 	if videoId == "" {
 		fmt.Printf("[Starchive] No video ID provided\n")
 		http.Error(w, "Video ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Handle podpapyrus mode
+	if mode == "podpapyrus" {
+		handlePodpapyrusMode(w, r, videoId, downloadQueue)
 		return
 	}
 
@@ -590,4 +604,312 @@ func GetStoredPOToken() string {
 	}
 	
 	return storedPOToken
+}
+
+// Helper functions for podpapyrus mode
+func stripHTMLTags(html string) string {
+	// Remove HTML tags
+	re := regexp.MustCompile(`<[^>]*>`)
+	text := re.ReplaceAllString(html, " ")
+
+	// Clean up extra whitespace
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	return strings.TrimSpace(text)
+}
+
+func extractShortSummary(htmlSummary string, wordLimit int) string {
+	// Remove HTML tags temporarily to count words
+	re := regexp.MustCompile(`<[^>]*>`)
+	textOnly := re.ReplaceAllString(htmlSummary, " ")
+
+	// Split into words
+	words := strings.Fields(textOnly)
+	if len(words) <= wordLimit {
+		return htmlSummary
+	}
+
+	// Take the first wordLimit words
+	targetWords := words[:wordLimit]
+
+	// Now find where this text ends in the original HTML and cut there
+	// This is a simplified approach - for better results, we'd need proper HTML parsing
+	var result strings.Builder
+	wordCount := 0
+	
+	// Iterate through the HTML, counting words until we reach our limit
+	tokens := regexp.MustCompile(`(<[^>]*>|[^<]+)`).FindAllString(htmlSummary, -1)
+	for _, token := range tokens {
+		if strings.HasPrefix(token, "<") {
+			// HTML tag, add as-is
+			result.WriteString(token)
+		} else {
+			// Text content
+			tokenWords := strings.Fields(token)
+			for _, word := range tokenWords {
+				if wordCount >= wordLimit {
+					return result.String() + "..."
+				}
+				if wordCount > 0 {
+					result.WriteString(" ")
+				}
+				result.WriteString(word)
+				wordCount++
+			}
+		}
+	}
+
+	return result.String()
+}
+
+func processTranscriptText(rawText string) []template.HTML {
+	// Remove "Language: en" prefix if present
+	text := regexp.MustCompile(`^Language: \w+\s*`).ReplaceAllString(rawText, "")
+
+	// Replace [&nbsp;__&nbsp;] with [censored]
+	text = regexp.MustCompile(`\[&nbsp;__&nbsp;\]`).ReplaceAllString(text, "[censored]")
+
+	// Split by double newlines to get paragraphs
+	paragraphs := strings.Split(text, "\n\n")
+
+	var result []template.HTML
+	for _, p := range paragraphs {
+		// Clean up the paragraph
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		// Replace single newlines with <br> tags
+		p = strings.ReplaceAll(p, "\n", "<br>")
+
+		result = append(result, template.HTML(p))
+	}
+
+	return result
+}
+
+func handlePodpapyrusMode(w http.ResponseWriter, r *http.Request, videoId string, downloadQueue interface{}) {
+	fmt.Printf("[Starchive] Handling podpapyrus mode for video ID: %s\n", videoId)
+
+	// Check if HTML file already exists
+	htmlFilePath := filepath.Join(podpapyrusBasePath, "summaries", videoId+".html")
+	if _, err := os.Stat(htmlFilePath); err == nil {
+		fmt.Printf("[Starchive] HTML file exists, serving content\n")
+		content, err := os.ReadFile(htmlFilePath)
+		if err != nil {
+			fmt.Printf("[Starchive] Error reading HTML file: %v\n", err)
+			http.Error(w, "Error reading HTML file", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]interface{}{
+			"hasContent": true,
+			"content":    string(content),
+			"videoId":    videoId,
+		}
+		json.NewEncoder(w).Encode(response)
+		fmt.Printf("[Starchive] Served %d bytes for video %s\n", len(content), videoId)
+		return
+	}
+
+	fmt.Printf("[Starchive] HTML file not found, running podpapyrus processing\n")
+
+	// Get YouTube cookie file
+	cookieFile := media.GetCookieFile("youtube")
+
+	// Download thumbnail and subtitles
+	fmt.Printf("[Starchive] Downloading thumbnail and subtitles for %s...\n", videoId)
+
+	if err := media.DownloadYouTubeThumbnail(videoId, cookieFile); err != nil {
+		fmt.Printf("[Starchive] Error downloading thumbnail: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error downloading thumbnail: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := media.DownloadYouTubeSubtitles(videoId, cookieFile); err != nil {
+		fmt.Printf("[Starchive] Error downloading subtitles: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error downloading subtitles: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("[Starchive] Successfully downloaded thumbnail and subtitles for %s\n", videoId)
+
+	// Check if txt file was created by VTT parsing
+	txtPath := fmt.Sprintf("./data/%s.txt", videoId)
+	if _, err := os.Stat(txtPath); err != nil {
+		fmt.Printf("[Starchive] Error: Text file was not created from VTT parsing: %v\n", err)
+		http.Error(w, fmt.Sprintf("Text file was not created from VTT parsing: %v", err), http.StatusInternalServerError)
+		return
+	}
+	fmt.Printf("[Starchive] Text file created: %s\n", txtPath)
+
+	// Read the text file content
+	textContent, err := os.ReadFile(txtPath)
+	if err != nil {
+		fmt.Printf("[Starchive] Error reading text file: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error reading text file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Download and read JSON metadata to get title
+	jsonPath := fmt.Sprintf("./data/%s.json", videoId)
+	if err := media.DownloadYouTubeJSON(videoId, cookieFile); err != nil {
+		fmt.Printf("[Starchive] Error downloading JSON metadata: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error downloading JSON metadata: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	jsonContent, err := os.ReadFile(jsonPath)
+	if err != nil {
+		fmt.Printf("[Starchive] Error reading JSON metadata: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error reading JSON metadata: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var metadata map[string]interface{}
+	if err := json.Unmarshal(jsonContent, &metadata); err != nil {
+		fmt.Printf("[Starchive] Error parsing JSON metadata: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error parsing JSON metadata: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	title, ok := metadata["title"].(string)
+	if !ok {
+		fmt.Printf("[Starchive] Error: Could not extract title from metadata\n")
+		http.Error(w, "Could not extract title from metadata", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate summary using claude CLI
+	fmt.Printf("[Starchive] Generating summary using claude CLI...\n")
+	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
+	summaryOutput, err := summaryCmd.Output()
+	if err != nil {
+		fmt.Printf("[Starchive] Error generating summary: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error generating summary: %v", err), http.StatusInternalServerError)
+		return
+	}
+	summary := string(summaryOutput)
+
+	// Generate bullets using claude CLI
+	fmt.Printf("[Starchive] Generating bullets using claude CLI...\n")
+	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
+	bulletsOutput, err := bulletsCmd.Output()
+	if err != nil {
+		fmt.Printf("[Starchive] Error generating bullets: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error generating bullets: %v", err), http.StatusInternalServerError)
+		return
+	}
+	bullets := string(bulletsOutput)
+
+	// Process the text content into paragraphs
+	paragraphs := processTranscriptText(string(textContent))
+
+	// Extract short summary (40-50 words)
+	shortSummary := extractShortSummary(summary, 45)
+
+	// Prepare template data
+	templateData := struct {
+		Title      string
+		Id         string
+		Text       string
+		Summary    template.HTML
+		Short      template.HTML
+		Bullets    template.HTML
+		Paragraphs []template.HTML
+	}{
+		Title:      title,
+		Id:         videoId,
+		Text:       string(textContent),
+		Summary:    template.HTML(summary),
+		Short:      template.HTML(stripHTMLTags(shortSummary)),
+		Bullets:    template.HTML(bullets),
+		Paragraphs: paragraphs,
+	}
+
+	// Parse template
+	tmpl, err := template.ParseFiles("./templates/id.html")
+	if err != nil {
+		fmt.Printf("[Starchive] Error parsing template: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error parsing template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure output directory exists
+	outputDir := filepath.Join(podpapyrusBasePath, "summaries")
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		fmt.Printf("[Starchive] Error creating output directory: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error creating output directory: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Create output file
+	outputPath := filepath.Join(outputDir, videoId+".html")
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		fmt.Printf("[Starchive] Error creating output file: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error creating output file: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer outputFile.Close()
+
+	// Execute template
+	if err := tmpl.Execute(outputFile, templateData); err != nil {
+		fmt.Printf("[Starchive] Error executing template: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error executing template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Copy thumbnail image to the images directory
+	imgSourcePath := fmt.Sprintf("./data/%s.jpg", videoId)
+	imgDir := filepath.Join(podpapyrusBasePath, "images")
+	if err := os.MkdirAll(imgDir, 0755); err != nil {
+		fmt.Printf("[Starchive] Error creating images directory: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error creating images directory: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	imgDestPath := filepath.Join(imgDir, videoId+".jpg")
+	sourceFile, err := os.Open(imgSourcePath)
+	if err != nil {
+		fmt.Printf("[Starchive] Error opening source image: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error opening source image: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(imgDestPath)
+	if err != nil {
+		fmt.Printf("[Starchive] Error creating destination image: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error creating destination image: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		fmt.Printf("[Starchive] Error copying image: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error copying image: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("[Starchive] Successfully created HTML file: %s\n", outputPath)
+	fmt.Printf("[Starchive] Successfully copied image to: %s\n", imgDestPath)
+
+	// Read the created HTML file and return it
+	htmlContent, err := os.ReadFile(outputPath)
+	if err != nil {
+		fmt.Printf("[Starchive] Error reading created HTML file: %v\n", err)
+		http.Error(w, fmt.Sprintf("Error reading created HTML file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"hasContent": true,
+		"content":    string(htmlContent),
+		"videoId":    videoId,
+	}
+	json.NewEncoder(w).Encode(response)
+	fmt.Printf("[Starchive] Served %d bytes for video %s in podpapyrus mode\n", len(htmlContent), videoId)
 }
