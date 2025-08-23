@@ -3,6 +3,9 @@ console.log('[Starchive] Background script loaded');
 // Store for transcript content
 let storedTranscripts = {};
 
+// Store for current mode
+let currentMode = 'default';
+
 // Function to collect all YouTube and Google authentication cookies
 async function collectAllYouTubeCookies() {
   console.log(`[Starchive] 🚀 Starting comprehensive cookie collection for YouTube authentication`);
@@ -167,7 +170,7 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     console.log(`[Starchive] Requesting txt for video ID: ${msg.videoId}`);
     console.log(`[Starchive] sendResponse function available:`, typeof sendResponse);
     
-    fetch(`http://localhost:3009/get-txt?id=${msg.videoId}`)
+    fetch(`http://localhost:3009/get-txt?id=${msg.videoId}&mode=${currentMode}`)
       .then(res => {
         console.log(`[Starchive] Response status for ${msg.videoId}:`, res.status);
         return res.json();
@@ -239,6 +242,12 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       length: transcriptData.content.length
     });
     
+    return true;
+  }
+  
+  if (msg.type === "setMode") {
+    console.log(`[Starchive] Mode changed to: ${msg.mode}`);
+    currentMode = msg.mode;
     return true;
   }
   

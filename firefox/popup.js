@@ -136,9 +136,15 @@ document.getElementById('podpapyrusButton').addEventListener('click', () => {
     button.classList.remove('pressed');
     modeText.textContent = 'Mode: default';
     console.log('[Starchive] Switched to default mode');
+    
+    // Send mode change to background script
+    browser.runtime.sendMessage({ type: "setMode", mode: "default" });
   } else {
     button.classList.add('pressed');
     modeText.textContent = 'Mode: podpapyrus';
     console.log('[Starchive] Switched to podpapyrus mode');
+    
+    // Send mode change to background script
+    browser.runtime.sendMessage({ type: "setMode", mode: "podpapyrus" });
   }
 });
