@@ -55,7 +55,7 @@ func WriteCookiesFile(cookiesData interface{}, platform string) error {
 // writeCookiesFromArray processes cookie objects from Firefox extension
 func writeCookiesFromArray(file *os.File, cookiesArray []interface{}) error {
 	fmt.Printf("Processing %d cookies from extension\n", len(cookiesArray))
-	
+
 	for i, cookieData := range cookiesArray {
 		cookie, ok := cookieData.(map[string]interface{})
 		if !ok {
@@ -67,7 +67,7 @@ func writeCookiesFromArray(file *os.File, cookiesArray []interface{}) error {
 		value, valueOk := cookie["value"].(string)
 		domain, domainOk := cookie["domain"].(string)
 		path, pathOk := cookie["path"].(string)
-		
+
 		if !nameOk || !valueOk || !domainOk || name == "" || value == "" || domain == "" {
 			fmt.Printf("Skipping incomplete cookie: name=%v, value=%v, domain=%v\n", nameOk, valueOk, domainOk)
 			continue
@@ -95,20 +95,20 @@ func writeCookiesFromArray(file *os.File, cookiesArray []interface{}) error {
 		}
 
 		// Write in Netscape format: domain, domain_specified, path, secure, expiration, name, value
-		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%d\t%s\t%s\n", 
-			domain, 
-			domainSpecified, 
-			path, 
-			strings.ToUpper(fmt.Sprintf("%t", secure)), 
-			expires, 
-			name, 
+		line := fmt.Sprintf("%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
+			domain,
+			domainSpecified,
+			path,
+			strings.ToUpper(fmt.Sprintf("%t", secure)),
+			expires,
+			name,
 			value)
-		
+
 		if _, err := file.WriteString(line); err != nil {
 			return fmt.Errorf("failed to write cookie %s: %v", name, err)
 		}
 	}
-	
+
 	fmt.Printf("Successfully wrote cookies to file\n")
 	return nil
 }
@@ -118,7 +118,7 @@ func writeCookiesFromString(file *os.File, cookiesStr, platform string) error {
 	// Parse and write cookies in legacy format
 	cookies := strings.Split(cookiesStr, "; ")
 	domain := fmt.Sprintf(".%s.com", platform)
-	
+
 	for _, cookie := range cookies {
 		parts := strings.SplitN(cookie, "=", 2)
 		if len(parts) == 2 {
@@ -127,10 +127,9 @@ func writeCookiesFromString(file *os.File, cookiesStr, platform string) error {
 			file.WriteString(line)
 		}
 	}
-	
+
 	return nil
 }
-
 
 // SetupRoutes configures HTTP routes for the web server
 func SetupRoutes(downloadQueue interface{}) {
@@ -217,7 +216,7 @@ func handleSetCookies(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "success",
+		"status":  "success",
 		"message": "Cookies updated successfully",
 	})
 }
@@ -353,7 +352,7 @@ func handleInstagram(w http.ResponseWriter, r *http.Request, downloadQueue inter
 
 func handleData(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[Starchive] GET /data request received\n")
-	
+
 	if r.Method != http.MethodGet {
 		fmt.Printf("[Starchive] Wrong method for /data: %s\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -370,14 +369,14 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("Unable to get disk usage: %v", err),
 		}
 	} else {
-		fmt.Printf("[Starchive] Disk usage - Total: %d bytes (%s), Used: %d bytes (%s), Free: %d bytes (%s)\n", 
+		fmt.Printf("[Starchive] Disk usage - Total: %d bytes (%s), Used: %d bytes (%s), Free: %d bytes (%s)\n",
 			total, util.Pretty(total), used, util.Pretty(used), free, util.Pretty(free))
-		
+
 		// Get actual size of ./data directory
 		dataSize, dataSizeErr := util.DirSize("./data")
 		var dataSizePretty string
 		var dataPercentOfFree float64
-		
+
 		if dataSizeErr != nil {
 			fmt.Printf("[Starchive] Error getting data directory size: %v\n", dataSizeErr)
 			dataSizePretty = "Error"
@@ -385,19 +384,19 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 		} else {
 			dataSizePretty = util.Pretty(uint64(dataSize))
 			dataPercentOfFree = (float64(dataSize) / float64(free)) * 100
-			fmt.Printf("[Starchive] Data directory size: %d bytes (%s), %.1f%% of free space\n", 
+			fmt.Printf("[Starchive] Data directory size: %d bytes (%s), %.1f%% of free space\n",
 				dataSize, dataSizePretty, dataPercentOfFree)
 		}
-		
+
 		diskInfo = map[string]interface{}{
-			"total":            total,
-			"used":             used,
-			"free":             free,
-			"totalPretty":      util.Pretty(total),
-			"usedPretty":       util.Pretty(used),
-			"freePretty":       util.Pretty(free),
-			"dataSize":         dataSize,
-			"dataSizePretty":   dataSizePretty,
+			"total":             total,
+			"used":              used,
+			"free":              free,
+			"totalPretty":       util.Pretty(total),
+			"usedPretty":        util.Pretty(used),
+			"freePretty":        util.Pretty(free),
+			"dataSize":          dataSize,
+			"dataSizePretty":    dataSizePretty,
 			"dataPercentOfFree": dataPercentOfFree,
 		}
 		fmt.Printf("[Starchive] Created diskInfo object: %+v\n", diskInfo)
@@ -409,9 +408,9 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 		"message":   "Starchive server is running",
 		"diskUsage": diskInfo,
 	}
-	
+
 	fmt.Printf("[Starchive] Final response object: %+v\n", response)
-	
+
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		fmt.Printf("[Starchive] Error encoding /data response: %v\n", err)
 		http.Error(w, "Error encoding response", http.StatusInternalServerError)
@@ -443,13 +442,13 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 		`))
 		return
 	}
-	
+
 	http.NotFound(w, r)
 }
 
 func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interface{}) {
 	fmt.Printf("[Starchive] GET /get-txt request received\n")
-	
+
 	if r.Method != http.MethodGet {
 		fmt.Printf("[Starchive] Wrong method: %s\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -459,7 +458,7 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 	videoId := r.URL.Query().Get("id")
 	mode := r.URL.Query().Get("mode")
 	fmt.Printf("[Starchive] Requested video ID: %s, mode: %s\n", videoId, mode)
-	
+
 	if videoId == "" {
 		fmt.Printf("[Starchive] No video ID provided\n")
 		http.Error(w, "Video ID is required", http.StatusBadRequest)
@@ -474,7 +473,7 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 
 	txtFilePath := fmt.Sprintf("./data/%s.txt", videoId)
 	fmt.Printf("[Starchive] Checking for txt file at: %s\n", txtFilePath)
-	
+
 	if _, err := os.Stat(txtFilePath); err == nil {
 		fmt.Printf("[Starchive] Txt file exists, serving content\n")
 		content, err := os.ReadFile(txtFilePath)
@@ -495,7 +494,7 @@ func handleGetTxt(w http.ResponseWriter, r *http.Request, downloadQueue interfac
 	}
 
 	fmt.Printf("[Starchive] Txt file not found, attempting to queue download\n")
-	
+
 	if queue, ok := downloadQueue.(*DownloadQueue); ok {
 		added := queue.AddToQueue(videoId)
 		w.Header().Set("Content-Type", "application/json")
@@ -529,9 +528,9 @@ func handlePOToken(w http.ResponseWriter, r *http.Request) {
 		token := storedPOToken
 		tokenTime := poTokenTime
 		poTokenMutex.RUnlock()
-		
+
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		// Return empty if token is older than 1 hour
 		if time.Since(tokenTime) > time.Hour {
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -540,14 +539,14 @@ func handlePOToken(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		
+
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"poToken":   token,
 			"timestamp": tokenTime.Unix(),
 		})
 		return
 	}
-	
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -582,7 +581,7 @@ func handlePOToken(w http.ResponseWriter, r *http.Request) {
 	poTokenTime = time.Now()
 	poTokenMutex.Unlock()
 
-	fmt.Printf("PO token received from %s: %s... (timestamp: %d)\n", 
+	fmt.Printf("PO token received from %s: %s... (timestamp: %d)\n",
 		req.Source, req.POToken[:20], req.Timestamp)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -597,12 +596,12 @@ func handlePOToken(w http.ResponseWriter, r *http.Request) {
 func GetStoredPOToken() string {
 	poTokenMutex.RLock()
 	defer poTokenMutex.RUnlock()
-	
+
 	// Return empty if token is older than 1 hour
 	if time.Since(poTokenTime) > time.Hour {
 		return ""
 	}
-	
+
 	return storedPOToken
 }
 
@@ -628,14 +627,11 @@ func extractShortSummary(htmlSummary string, wordLimit int) string {
 		return htmlSummary
 	}
 
-	// Take the first wordLimit words
-	targetWords := words[:wordLimit]
-
 	// Now find where this text ends in the original HTML and cut there
 	// This is a simplified approach - for better results, we'd need proper HTML parsing
 	var result strings.Builder
 	wordCount := 0
-	
+
 	// Iterate through the HTML, counting words until we reach our limit
 	tokens := regexp.MustCompile(`(<[^>]*>|[^<]+)`).FindAllString(htmlSummary, -1)
 	for _, token := range tokens {
