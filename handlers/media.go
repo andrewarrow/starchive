@@ -301,3 +301,57 @@ func HandleSmall() {
 
 	fmt.Printf("\nSuccessfully created small optimized video: %s\n", outputPath)
 }
+
+func HandlePodpapyrus() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive podpapyrus <id_or_url>")
+		fmt.Println("Examples:")
+		fmt.Println("  starchive podpapyrus abc123")
+		fmt.Println("  starchive podpapyrus https://www.youtube.com/watch?v=abc123")
+		fmt.Println("This downloads thumbnail and VTT subtitle files, then creates a text file")
+		os.Exit(1)
+	}
+
+	input := os.Args[2]
+	
+	// Extract ID and platform from input
+	id, platform := media.ParseVideoInput(input)
+	if id == "" {
+		fmt.Printf("Error: Could not extract ID from input: %s\n", input)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Detected platform: %s, ID: %s\n", platform, id)
+	
+	// Currently only support YouTube
+	if platform != "youtube" {
+		fmt.Printf("Error: podpapyrus currently only supports YouTube videos\n")
+		os.Exit(1)
+	}
+	
+	// Get YouTube cookie file
+	cookieFile := media.GetCookieFile(platform)
+	
+	// Download thumbnail and subtitles only
+	fmt.Printf("Downloading thumbnail and subtitles for %s...\n", id)
+	
+	if err := media.DownloadYouTubeThumbnail(id, cookieFile); err != nil {
+		fmt.Printf("Error downloading thumbnail: %v\n", err)
+		os.Exit(1)
+	}
+	
+	if err := media.DownloadYouTubeSubtitles(id, cookieFile); err != nil {
+		fmt.Printf("Error downloading subtitles: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Successfully downloaded thumbnail and subtitles for %s\n", id)
+	
+	// Check if txt file was created by VTT parsing
+	txtPath := fmt.Sprintf("./data/%s.txt", id)
+	if _, err := os.Stat(txtPath); err == nil {
+		fmt.Printf("Text file created: %s\n", txtPath)
+	} else {
+		fmt.Printf("Warning: Text file was not created from VTT parsing\n")
+	}
+}
