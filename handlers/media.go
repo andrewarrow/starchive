@@ -442,6 +442,16 @@ func HandlePodpapyrus() {
 	}
 	summary := string(summaryOutput)
 	
+	// Generate bullets using claude CLI
+	fmt.Printf("Generating bullets using claude CLI...\n")
+	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text: " + string(textContent))
+	bulletsOutput, err := bulletsCmd.Output()
+	if err != nil {
+		fmt.Printf("Error generating bullets: %v\n", err)
+		os.Exit(1)
+	}
+	bullets := string(bulletsOutput)
+	
 	// Process the text content into paragraphs
 	paragraphs := processTranscriptText(string(textContent))
 	
@@ -451,12 +461,14 @@ func HandlePodpapyrus() {
 		Id         string
 		Text       string
 		Summary    string
+		Bullets    string
 		Paragraphs []template.HTML
 	}{
 		Title:      title,
 		Id:         id,
 		Text:       string(textContent),
 		Summary:    summary,
+		Bullets:    bullets,
 		Paragraphs: paragraphs,
 	}
 	
