@@ -3,6 +3,97 @@ console.log('[Starchive] Background script loaded');
 // Store for transcript content
 let storedTranscripts = {};
 
+// Function to collect all YouTube and Google authentication cookies
+async function collectAllYouTubeCookies() {
+  const domains = [
+    'youtube.com',
+    '.youtube.com', 
+    'www.youtube.com',
+    'google.com',
+    '.google.com',
+    'www.google.com',
+    'accounts.google.com',
+    'apis.google.com',
+    'play.google.com'
+  ];
+  
+  const allCookies = [];
+  const criticalCookieNames = [
+    // YouTube specific cookies
+    'VISITOR_INFO1_LIVE', 'VISITOR_PRIVACY_METADATA', 'PREF',
+    'YSC', 'GPS', 'CONSENT',
+    
+    // Google authentication cookies  
+    'SID', 'HSID', 'SSID', 'APISID', 'SAPISID',
+    '__Secure-1PAPISID', '__Secure-3PAPISID', '__Secure-1PSID', '__Secure-3PSID',
+    '__Secure-1PSIDTS', '__Secure-3PSIDTS', '__Secure-1PSIDCC', '__Secure-3PSIDCC',
+    
+    // Login and session cookies
+    'LOGIN_INFO', 'session_logininfo', 'oauth_token',
+    '__Host-1PLSID', '__Host-3PLSID', '__Host-GAPS',
+    
+    // Additional security cookies
+    'NID', 'DV', '__Secure-ENID', '1P_JAR', 'AEC',
+    'SMSV', 'ACCOUNT_CHOOSER', 'LSOLH'
+  ];
+  
+  for (const domain of domains) {
+    try {
+      const cookies = await new Promise((resolve, reject) => {
+        browser.cookies.getAll({ domain: domain }, (cookies) => {
+          if (browser.runtime.lastError) {
+            console.warn(`[Starchive] Error getting cookies for ${domain}:`, browser.runtime.lastError);
+            resolve([]);
+          } else {
+            resolve(cookies || []);
+          }
+        });
+      });
+      
+      console.log(`[Starchive] Found ${cookies.length} cookies for domain ${domain}`);
+      
+      // Filter to include all cookies, but prioritize critical ones
+      const filteredCookies = cookies.filter(cookie => {
+        // Always include critical authentication cookies
+        if (criticalCookieNames.includes(cookie.name)) {
+          console.log(`[Starchive] Found critical cookie: ${cookie.name} for ${domain}`);
+          return true;
+        }
+        
+        // Include session and security related cookies
+        if (cookie.name.includes('session') || cookie.name.includes('login') || 
+            cookie.name.includes('auth') || cookie.name.includes('token') ||
+            cookie.name.startsWith('__Secure-') || cookie.name.startsWith('__Host-')) {
+          console.log(`[Starchive] Found security cookie: ${cookie.name} for ${domain}`);
+          return true;
+        }
+        
+        // Include all other cookies too (YouTube's bot detection might check any cookie)
+        return true;
+      });
+      
+      allCookies.push(...filteredCookies);
+      
+    } catch (error) {
+      console.warn(`[Starchive] Failed to get cookies for domain ${domain}:`, error);
+    }
+  }
+  
+  // Remove duplicates based on name and domain
+  const uniqueCookies = allCookies.filter((cookie, index, self) => 
+    index === self.findIndex(c => c.name === cookie.name && c.domain === cookie.domain)
+  );
+  
+  console.log(`[Starchive] Collected total of ${uniqueCookies.length} unique cookies`);
+  
+  // Log critical cookies found
+  const foundCritical = uniqueCookies.filter(c => criticalCookieNames.includes(c.name));
+  console.log(`[Starchive] Found ${foundCritical.length} critical authentication cookies:`, 
+              foundCritical.map(c => `${c.name}@${c.domain}`));
+  
+  return uniqueCookies;
+}
+
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log('[Starchive] Received message:', msg.type, msg);
   
@@ -105,14 +196,12 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   
   if (msg.type === "youtubeVideo") {
-    // Collect YouTube cookies then post video + cookies to backend
+    // Collect all YouTube and Google cookies for authentication
     try {
-      browser.cookies.getAll({ domain: "youtube.com" }, (cookies) => {
-        if (browser.runtime.lastError) {
-          console.error("Error getting cookies:", browser.runtime.lastError);
-        }
-
-        const minimalCookies = (cookies || []).map(c => ({
+      collectAllYouTubeCookies().then(allCookies => {
+        console.log(`[Starchive] Collected ${allCookies.length} cookies from all YouTube/Google domains`);
+        
+        const minimalCookies = allCookies.map(c => ({
           name: c.name,
           value: c.value,
           domain: c.domain,
@@ -141,6 +230,13 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             console.error("Error sending YouTube video:", err);
             if (sendResponse) sendResponse({ error: err.message });
           });
+      }).catch(err => {
+        console.error("Cookie collection failed:", err);
+        fetch("http://localhost:3009/youtube", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoId: msg.videoId })
+        }).catch(e => console.error("Fallback request failed:", e));
       });
     } catch (err) {
       console.error("Cookie collection failed:", err);

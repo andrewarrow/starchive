@@ -8,6 +8,10 @@
   "host_permissions": [
     "http://localhost:3009/*",
     "https://*.youtube.com/*",
+    "https://*.google.com/*",
+    "https://accounts.google.com/*",
+    "https://apis.google.com/*",
+    "https://play.google.com/*",
     "https://*.instagram.com/*"
   ],
   "background": {

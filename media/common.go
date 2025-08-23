@@ -67,15 +67,11 @@ func DownloadVideo(videoID, platform string) (string, error) {
 func GetCookieFile(platform string) string {
 	switch platform {
 	case "youtube":
-		// Try platform-specific first, fallback to generic
-		if _, err := os.Stat("./cookies_youtube.txt"); err == nil {
-			return "./cookies_youtube.txt"
-		}
-		return "./cookies.txt"
+		return "./cookies_youtube.txt"
 	case "instagram":
 		return "./cookies_instagram.txt"
 	default:
-		return "./cookies.txt"
+		return fmt.Sprintf("./cookies_%s.txt", platform)
 	}
 }
 

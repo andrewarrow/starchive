@@ -47,10 +47,6 @@ func WriteCookiesFile(cookiesStr string, platform string) error {
 	return nil
 }
 
-// writeCookiesFile is the original working implementation for YouTube backward compatibility
-func writeCookiesFile(cookiesStr string) error {
-	return WriteCookiesFile(cookiesStr, "youtube")
-}
 
 // SetupRoutes configures HTTP routes for the web server
 func SetupRoutes(downloadQueue interface{}) {
@@ -172,8 +168,8 @@ func handleYouTube(w http.ResponseWriter, r *http.Request, downloadQueue interfa
 
 	// Handle cookies if provided - support both string and array formats
 	if cookies, ok := jsonData["cookies"].(string); ok && cookies != "" {
-		if err := writeCookiesFile(cookies); err != nil {
-			fmt.Printf("Warning: failed to write cookies: %v\n", err)
+		if err := WriteCookiesFile(cookies, "youtube"); err != nil {
+			fmt.Printf("Warning: failed to write YouTube cookies: %v\n", err)
 		}
 	} else if cookiesArray, ok := jsonData["cookies"].([]interface{}); ok && len(cookiesArray) > 0 {
 		// Convert array format to string format
