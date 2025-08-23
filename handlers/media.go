@@ -16,8 +16,9 @@ import (
 	"starchive/util"
 )
 
-// const podpapyrusBasePath = "../andrewarrow.dev/podpapyrus"
-const podpapyrusBasePath = "./data/podpapyrus"
+const podpapyrusBasePath = "../andrewarrow.dev/podpapyrus"
+
+//const podpapyrusBasePath = "./data/podpapyrus"
 
 func stripHTMLTags(html string) string {
 	// Remove HTML tags
