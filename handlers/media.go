@@ -16,6 +16,8 @@ import (
 	"starchive/util"
 )
 
+const podpapyrusBasePath = "../andrewarrow.dev/podpapyrus"
+
 func stripHTMLTags(html string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
@@ -546,7 +548,7 @@ func HandlePodpapyrus() {
 	}
 	
 	// Ensure output directory exists
-	outputDir := "../andrewarrow.dev/podpapyrus/summaries"
+	outputDir := filepath.Join(podpapyrusBasePath, "summaries")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		fmt.Printf("Error creating output directory: %v\n", err)
 		os.Exit(1)
@@ -569,7 +571,7 @@ func HandlePodpapyrus() {
 	
 	// Copy thumbnail image to the images directory
 	imgSourcePath := fmt.Sprintf("./data/%s.jpg", id)
-	imgDir := "../andrewarrow.dev/podpapyrus/images"
+	imgDir := filepath.Join(podpapyrusBasePath, "images")
 	if err := os.MkdirAll(imgDir, 0755); err != nil {
 		fmt.Printf("Error creating images directory: %v\n", err)
 		os.Exit(1)
@@ -615,7 +617,7 @@ func HandlePodpapyrus() {
 	}
 	
 	// Read the current summaries/index.html
-	indexPath := "../andrewarrow.dev/podpapyrus/summaries/index.html"
+	indexPath := filepath.Join(podpapyrusBasePath, "summaries", "index.html")
 	indexContent, err := os.ReadFile(indexPath)
 	if err != nil {
 		fmt.Printf("Error reading index file: %v\n", err)
@@ -662,7 +664,7 @@ func HandlePodpapyrus() {
 	fmt.Printf("Successfully generated homepage HTML\n")
 	
 	// Read the current index.html file
-	homepageIndexPath := "../andrewarrow.dev/podpapyrus/index.html"
+	homepageIndexPath := filepath.Join(podpapyrusBasePath, "index.html")
 	homepageIndexContent, err := os.ReadFile(homepageIndexPath)
 	if err != nil {
 		fmt.Printf("Error reading homepage index file: %v\n", err)
