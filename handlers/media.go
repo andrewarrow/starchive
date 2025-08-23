@@ -16,6 +16,16 @@ import (
 	"starchive/util"
 )
 
+func stripHTMLTags(html string) string {
+	// Remove HTML tags
+	re := regexp.MustCompile(`<[^>]*>`)
+	text := re.ReplaceAllString(html, " ")
+	
+	// Clean up extra whitespace
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	return strings.TrimSpace(text)
+}
+
 func extractShortSummary(htmlSummary string, wordLimit int) string {
 	// Remove HTML tags temporarily to count words
 	re := regexp.MustCompile(`<[^>]*>`)
@@ -523,7 +533,7 @@ func HandlePodpapyrus() {
 		Id:         id,
 		Text:       string(textContent),
 		Summary:    template.HTML(summary),
-		Short:      template.HTML(shortSummary),
+		Short:      template.HTML(stripHTMLTags(shortSummary)),
 		Bullets:    template.HTML(bullets),
 		Paragraphs: paragraphs,
 	}
