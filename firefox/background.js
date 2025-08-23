@@ -251,6 +251,12 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   
+  if (msg.type === "getMode") {
+    console.log(`[Starchive] Returning current mode: ${currentMode}`);
+    sendResponse({ mode: currentMode });
+    return true;
+  }
+  
   if (msg.type === "youtubeVideo") {
     console.log(`[Starchive] 🎬 YouTube video detected: ${msg.videoId}`);
     console.log(`[Starchive] 🔄 Starting cookie collection and backend transmission process...`);

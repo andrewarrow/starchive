@@ -148,3 +148,25 @@ document.getElementById('podpapyrusButton').addEventListener('click', () => {
     browser.runtime.sendMessage({ type: "setMode", mode: "podpapyrus" });
   }
 });
+
+// Initialize popup with current mode when it loads
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[Starchive] Popup loaded, getting current mode from background script');
+  browser.runtime.sendMessage({ type: "getMode" }, (response) => {
+    if (response && response.mode) {
+      console.log(`[Starchive] Current mode from background: ${response.mode}`);
+      const button = document.getElementById('podpapyrusButton');
+      const modeText = document.getElementById('modeText');
+      
+      if (response.mode === 'podpapyrus') {
+        button.classList.add('pressed');
+        modeText.textContent = 'Mode: podpapyrus';
+        console.log('[Starchive] Set UI to podpapyrus mode');
+      } else {
+        button.classList.remove('pressed');
+        modeText.textContent = 'Mode: default';
+        console.log('[Starchive] Set UI to default mode');
+      }
+    }
+  });
+});
