@@ -16,13 +16,14 @@ import (
 	"starchive/util"
 )
 
-const podpapyrusBasePath = "../andrewarrow.dev/podpapyrus"
+// const podpapyrusBasePath = "../andrewarrow.dev/podpapyrus"
+const podpapyrusBasePath = "./data/podpapyrus"
 
 func stripHTMLTags(html string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
 	text := re.ReplaceAllString(html, " ")
-	
+
 	// Clean up extra whitespace
 	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
 	return strings.TrimSpace(text)
@@ -32,22 +33,22 @@ func extractShortSummary(htmlSummary string, wordLimit int) string {
 	// Remove HTML tags temporarily to count words
 	re := regexp.MustCompile(`<[^>]*>`)
 	textOnly := re.ReplaceAllString(htmlSummary, " ")
-	
+
 	// Split into words
 	words := regexp.MustCompile(`\s+`).Split(strings.TrimSpace(textOnly), -1)
-	
+
 	if len(words) <= wordLimit {
 		return htmlSummary
 	}
-	
+
 	// Find the position in the original HTML where we should cut
 	wordCount := 0
 	var result strings.Builder
 	inTag := false
-	
+
 	for i, char := range htmlSummary {
 		result.WriteRune(char)
-		
+
 		if char == '<' {
 			inTag = true
 		} else if char == '>' {
@@ -68,44 +69,44 @@ func extractShortSummary(htmlSummary string, wordLimit int) string {
 				}
 				break
 			}
-			
+
 			// Count the word we just passed
 			if i > 0 && htmlSummary[i-1] != ' ' && htmlSummary[i-1] != '\t' && htmlSummary[i-1] != '\n' {
 				wordCount++
 			}
 		}
 	}
-	
+
 	return result.String()
 }
 
 func processTranscriptText(rawText string) []template.HTML {
 	// Remove "Language: en" prefix if present
 	text := regexp.MustCompile(`^Language: \w+\s*`).ReplaceAllString(rawText, "")
-	
+
 	// Replace [&nbsp;__&nbsp;] with [censored]
 	text = regexp.MustCompile(`\[&nbsp;__&nbsp;\]`).ReplaceAllString(text, "[censored]")
-	
+
 	// Clean up extra whitespace
 	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
 	text = strings.TrimSpace(text)
-	
+
 	// Split into sentences and group into paragraphs
 	sentences := regexp.MustCompile(`[.!?]+\s+`).Split(text, -1)
-	
+
 	var paragraphs []template.HTML
 	var currentParagraph []string
 	sentenceCount := 0
-	
+
 	for _, sentence := range sentences {
 		sentence = strings.TrimSpace(sentence)
 		if sentence == "" {
 			continue
 		}
-		
+
 		currentParagraph = append(currentParagraph, sentence)
 		sentenceCount++
-		
+
 		// Create a new paragraph every 4-6 sentences
 		if sentenceCount >= 4 && len(currentParagraph) > 0 {
 			paragraphs = append(paragraphs, template.HTML(strings.Join(currentParagraph, ". ")+"."))
@@ -113,12 +114,12 @@ func processTranscriptText(rawText string) []template.HTML {
 			sentenceCount = 0
 		}
 	}
-	
+
 	// Add any remaining sentences as a final paragraph
 	if len(currentParagraph) > 0 {
 		paragraphs = append(paragraphs, template.HTML(strings.Join(currentParagraph, ". ")+"."))
 	}
-	
+
 	return paragraphs
 }
 
@@ -134,16 +135,16 @@ func HandleDl() {
 	}
 
 	input := os.Args[2]
-	
+
 	// Extract ID and platform from input
 	id, platform := media.ParseVideoInput(input)
 	if id == "" {
 		fmt.Printf("Error: Could not extract ID from input: %s\n", input)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Detected platform: %s, ID: %s\n", platform, id)
-	
+
 	_, err := media.DownloadVideo(id, platform)
 	if err != nil {
 		fmt.Printf("Error downloading video: %v\n", err)
@@ -160,7 +161,7 @@ func HandleExternal() {
 	}
 
 	sourceFilePath := os.Args[2]
-	
+
 	// Expand tilde to home directory
 	if strings.HasPrefix(sourceFilePath, "~/") {
 		homeDir, err := os.UserHomeDir()
@@ -180,7 +181,7 @@ func HandleExternal() {
 	// Get filename without extension for title and ID
 	filename := filepath.Base(sourceFilePath)
 	title := strings.TrimSuffix(filename, filepath.Ext(filename))
-	
+
 	// Generate ID from first 11 characters of filename (without extension)
 	id := title
 	if len(id) > 11 {
@@ -191,7 +192,7 @@ func HandleExternal() {
 
 	// Determine file extension
 	ext := strings.ToLower(filepath.Ext(sourceFilePath))
-	
+
 	// Copy file to data directory
 	dataDir := "./data"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -200,7 +201,7 @@ func HandleExternal() {
 	}
 
 	destPath := filepath.Join(dataDir, id+ext)
-	
+
 	// Check if destination already exists
 	if _, err := os.Stat(destPath); err == nil {
 		fmt.Printf("File with ID %s already exists in data directory\n", id)
@@ -232,12 +233,12 @@ func HandleExternal() {
 
 	// Create JSON metadata file
 	metadata := map[string]interface{}{
-		"id":       id,
-		"title":    title,
-		"source":   "external",
+		"id":            id,
+		"title":         title,
+		"source":        "external",
 		"original_path": sourceFilePath,
-		"imported_at": time.Now().Format(time.RFC3339),
-		"filename": filename,
+		"imported_at":   time.Now().Format(time.RFC3339),
+		"filename":      filename,
 	}
 
 	jsonPath := filepath.Join(dataDir, id+".json")
@@ -254,21 +255,21 @@ func HandleExternal() {
 	}
 
 	fmt.Printf("Created metadata file: %s\n", jsonPath)
-	
+
 	// Add to database
 	db, err := util.InitDatabase()
 	if err != nil {
 		fmt.Printf("Warning: Could not initialize database: %v\n", err)
 	} else {
 		defer db.Close()
-		
+
 		videoMetadata := util.VideoMetadata{
 			ID:           id,
 			Title:        &title,
 			LastModified: time.Now(),
 			VocalDone:    false,
 		}
-		
+
 		if err := db.SaveMetadata(&videoMetadata); err != nil {
 			fmt.Printf("Warning: Could not save to database: %v\n", err)
 		} else {
@@ -291,7 +292,7 @@ func HandleUl() {
 	}
 
 	id := os.Args[2]
-	
+
 	mp4Path := fmt.Sprintf("./data/%s.mp4", id)
 	if _, err := os.Stat(mp4Path); os.IsNotExist(err) {
 		fmt.Printf("Error: MP4 file %s does not exist\n", mp4Path)
@@ -305,18 +306,18 @@ func HandleUl() {
 	}
 
 	fmt.Printf("Uploading %s to YouTube...\n", mp4Path)
-	
+
 	absMP4Path, err := filepath.Abs(mp4Path)
 	if err != nil {
 		fmt.Printf("Error getting absolute path for mp4: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	cmd := exec.Command("python3", "upload_to_youtube.py", absMP4Path, "--title", id)
 	cmd.Dir = "./media"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	err = cmd.Run()
 	if err != nil {
 		fmt.Printf("Error uploading to YouTube: %v\n", err)
@@ -421,40 +422,40 @@ func HandlePodpapyrus() {
 	}
 
 	input := os.Args[2]
-	
+
 	// Extract ID and platform from input
 	id, platform := media.ParseVideoInput(input)
 	if id == "" {
 		fmt.Printf("Error: Could not extract ID from input: %s\n", input)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Detected platform: %s, ID: %s\n", platform, id)
-	
+
 	// Currently only support YouTube
 	if platform != "youtube" {
 		fmt.Printf("Error: podpapyrus currently only supports YouTube videos\n")
 		os.Exit(1)
 	}
-	
+
 	// Get YouTube cookie file
 	cookieFile := media.GetCookieFile(platform)
-	
+
 	// Download thumbnail and subtitles only
 	fmt.Printf("Downloading thumbnail and subtitles for %s...\n", id)
-	
+
 	if err := media.DownloadYouTubeThumbnail(id, cookieFile); err != nil {
 		fmt.Printf("Error downloading thumbnail: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	if err := media.DownloadYouTubeSubtitles(id, cookieFile); err != nil {
 		fmt.Printf("Error downloading subtitles: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully downloaded thumbnail and subtitles for %s\n", id)
-	
+
 	// Check if txt file was created by VTT parsing
 	txtPath := fmt.Sprintf("./data/%s.txt", id)
 	if _, err := os.Stat(txtPath); err != nil {
@@ -462,65 +463,65 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 	fmt.Printf("Text file created: %s\n", txtPath)
-	
+
 	// Read the text file content
 	textContent, err := os.ReadFile(txtPath)
 	if err != nil {
 		fmt.Printf("Error reading text file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Download and read JSON metadata to get title
 	jsonPath := fmt.Sprintf("./data/%s.json", id)
 	if err := media.DownloadYouTubeJSON(id, cookieFile); err != nil {
 		fmt.Printf("Error downloading JSON metadata: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	jsonContent, err := os.ReadFile(jsonPath)
 	if err != nil {
 		fmt.Printf("Error reading JSON metadata: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	var metadata map[string]interface{}
 	if err := json.Unmarshal(jsonContent, &metadata); err != nil {
 		fmt.Printf("Error parsing JSON metadata: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	title, ok := metadata["title"].(string)
 	if !ok {
 		fmt.Printf("Error: Could not extract title from metadata\n")
 		os.Exit(1)
 	}
-	
+
 	// Generate summary using claude CLI
 	fmt.Printf("Generating summary using claude CLI...\n")
-	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: " + string(textContent))
+	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
 	summaryOutput, err := summaryCmd.Output()
 	if err != nil {
 		fmt.Printf("Error generating summary: %v\n", err)
 		os.Exit(1)
 	}
 	summary := string(summaryOutput)
-	
+
 	// Generate bullets using claude CLI
 	fmt.Printf("Generating bullets using claude CLI...\n")
-	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: " + string(textContent))
+	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
 	bulletsOutput, err := bulletsCmd.Output()
 	if err != nil {
 		fmt.Printf("Error generating bullets: %v\n", err)
 		os.Exit(1)
 	}
 	bullets := string(bulletsOutput)
-	
+
 	// Process the text content into paragraphs
 	paragraphs := processTranscriptText(string(textContent))
-	
+
 	// Extract short summary (40-50 words)
 	shortSummary := extractShortSummary(summary, 45)
-	
+
 	// Prepare template data
 	templateData := struct {
 		Title      string
@@ -539,21 +540,21 @@ func HandlePodpapyrus() {
 		Bullets:    template.HTML(bullets),
 		Paragraphs: paragraphs,
 	}
-	
+
 	// Parse template
 	tmpl, err := template.ParseFiles("./templates/id.html")
 	if err != nil {
 		fmt.Printf("Error parsing template: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Ensure output directory exists
 	outputDir := filepath.Join(podpapyrusBasePath, "summaries")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		fmt.Printf("Error creating output directory: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Create output file
 	outputPath := filepath.Join(outputDir, id+".html")
 	outputFile, err := os.Create(outputPath)
@@ -562,13 +563,13 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 	defer outputFile.Close()
-	
+
 	// Execute template
 	if err := tmpl.Execute(outputFile, templateData); err != nil {
 		fmt.Printf("Error executing template: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Copy thumbnail image to the images directory
 	imgSourcePath := fmt.Sprintf("./data/%s.jpg", id)
 	imgDir := filepath.Join(podpapyrusBasePath, "images")
@@ -576,7 +577,7 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error creating images directory: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	imgDestPath := filepath.Join(imgDir, id+".jpg")
 	sourceFile, err := os.Open(imgSourcePath)
 	if err != nil {
@@ -584,23 +585,23 @@ func HandlePodpapyrus() {
 		os.Exit(1)
 	}
 	defer sourceFile.Close()
-	
+
 	destFile, err := os.Create(imgDestPath)
 	if err != nil {
 		fmt.Printf("Error creating destination image: %v\n", err)
 		os.Exit(1)
 	}
 	defer destFile.Close()
-	
+
 	_, err = io.Copy(destFile, sourceFile)
 	if err != nil {
 		fmt.Printf("Error copying image: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully created HTML file: %s\n", outputPath)
 	fmt.Printf("Successfully copied image to: %s\n", imgDestPath)
-	
+
 	// Generate item HTML using item.html template
 	fmt.Printf("Generating item HTML for summaries list...\n")
 	itemTmpl, err := template.ParseFiles("./templates/item.html")
@@ -608,14 +609,14 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error parsing item template: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Use a string builder to capture the item HTML
 	var itemHTML strings.Builder
 	if err := itemTmpl.Execute(&itemHTML, templateData); err != nil {
 		fmt.Printf("Error executing item template: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Read the current summaries/index.html
 	indexPath := filepath.Join(podpapyrusBasePath, "summaries", "index.html")
 	indexContent, err := os.ReadFile(indexPath)
@@ -623,7 +624,7 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error reading index file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Find the "<!-- top of list -->" marker and insert the new item after it
 	marker := "<!-- top of list -->"
 	indexStr := string(indexContent)
@@ -632,20 +633,20 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error: Could not find '<!-- top of list -->' marker in index.html\n")
 		os.Exit(1)
 	}
-	
+
 	// Insert the new item HTML after the marker
 	beforeMarker := indexStr[:markerIndex+len(marker)]
 	afterMarker := indexStr[markerIndex+len(marker):]
 	newIndexContent := beforeMarker + "\n          " + itemHTML.String() + afterMarker
-	
+
 	// Write the updated content back to index.html
 	if err := os.WriteFile(indexPath, []byte(newIndexContent), 0644); err != nil {
 		fmt.Printf("Error writing updated index file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully updated summaries index with new item\n")
-	
+
 	// Generate homepage HTML using homepage.html template
 	fmt.Printf("Generating homepage HTML for main page...\n")
 	homepageTmpl, err := template.ParseFiles("./templates/homepage.html")
@@ -653,16 +654,16 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error parsing homepage template: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Use a string builder to capture the homepage HTML
 	var homepageHTML strings.Builder
 	if err := homepageTmpl.Execute(&homepageHTML, templateData); err != nil {
 		fmt.Printf("Error executing homepage template: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully generated homepage HTML\n")
-	
+
 	// Read the current index.html file
 	homepageIndexPath := filepath.Join(podpapyrusBasePath, "index.html")
 	homepageIndexContent, err := os.ReadFile(homepageIndexPath)
@@ -670,7 +671,7 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error reading homepage index file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Find the "<!-- recent 3 -->" marker and the grid div after it
 	homepageMarker := "<!-- recent 3 -->"
 	gridStart := "<div class=\"grid md:grid-cols-3 gap-8 mb-12\">"
@@ -680,18 +681,18 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error: Could not find '<!-- recent 3 -->' marker in homepage index.html\n")
 		os.Exit(1)
 	}
-	
+
 	gridStartIndex := strings.Index(homepageIndexStr[homepageMarkerIndex:], gridStart)
 	if gridStartIndex == -1 {
 		fmt.Printf("Error: Could not find grid div after marker in homepage index.html\n")
 		os.Exit(1)
 	}
 	gridStartIndex += homepageMarkerIndex + len(gridStart)
-	
+
 	// Parse the existing grid items to maintain exactly 3 items
 	beforeGrid := homepageIndexStr[:gridStartIndex]
 	afterGridStart := homepageIndexStr[gridStartIndex:]
-	
+
 	// Find the end of the grid div to extract existing items
 	gridEndTag := "</div>"
 	gridEndIndex := strings.Index(afterGridStart, gridEndTag)
@@ -699,15 +700,15 @@ func HandlePodpapyrus() {
 		fmt.Printf("Error: Could not find end of grid div in homepage index.html\n")
 		os.Exit(1)
 	}
-	
+
 	existingGridContent := afterGridStart[:gridEndIndex]
 	afterGridEnd := afterGridStart[gridEndIndex:]
-	
+
 	// Parse existing items by looking for <a href="./summaries/ patterns
 	itemPattern := `<a href="./summaries/[^"]+\.html"`
 	re := regexp.MustCompile(itemPattern)
 	matches := re.FindAllStringIndex(existingGridContent, -1)
-	
+
 	var existingItems []string
 	if len(matches) > 0 {
 		// Extract first 2 items to keep (making room for the new item at the beginning)
@@ -715,7 +716,7 @@ func HandlePodpapyrus() {
 			if i >= 2 {
 				break // Only keep first 2 items
 			}
-			
+
 			// Find the end of this item (next <a tag or end of content)
 			itemStart := match[0]
 			var itemEnd int
@@ -724,7 +725,7 @@ func HandlePodpapyrus() {
 			} else {
 				itemEnd = len(existingGridContent)
 			}
-			
+
 			// Find the closing </a> tag for this item
 			itemContent := existingGridContent[itemStart:itemEnd]
 			closingTagIndex := strings.LastIndex(itemContent, "</a>")
@@ -733,26 +734,26 @@ func HandlePodpapyrus() {
 			}
 		}
 	}
-	
+
 	// Build the new grid content with exactly 3 items: new item + first 2 existing items
 	var newGridContent strings.Builder
 	newGridContent.WriteString("\n          ")
 	newGridContent.WriteString(homepageHTML.String())
 	newGridContent.WriteString("\n          ")
-	
+
 	for _, item := range existingItems {
 		newGridContent.WriteString("\n          ")
 		newGridContent.WriteString(item)
 		newGridContent.WriteString("\n          ")
 	}
-	
+
 	newHomepageContent := beforeGrid + newGridContent.String() + afterGridEnd
-	
+
 	// Write the updated content back to index.html
 	if err := os.WriteFile(homepageIndexPath, []byte(newHomepageContent), 0644); err != nil {
 		fmt.Printf("Error writing updated homepage index file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully updated homepage index with new item\n")
 }

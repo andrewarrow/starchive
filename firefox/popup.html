@@ -31,6 +31,34 @@
       gap: 8px;
     }
     
+    .icon-button {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      margin-bottom: 12px;
+      margin-right: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      background: #2d2d2d;
+      color: #ffffff;
+      transition: all 0.2s ease;
+      font-size: 16px;
+    }
+    
+    .icon-button:hover {
+      background: #3d3d3d;
+      transform: translateY(-1px);
+    }
+    
+    .icon-button:active {
+      transform: translateY(0);
+      background: #252525;
+    }
+    
     button:hover {
       background: #3d3d3d;
       transform: translateY(-1px);
@@ -150,7 +178,7 @@
     <img src="star.png" alt="Starchive">
     <h1>Starchive</h1>
   </div>
-  <button id="fetchButton">Fetch Data</button>
+  <button id="fetchButton" class="icon-button" title="show used space">📁</button>
   <button id="copyTranscriptButton">📋 Copy Transcript</button>
   
   <div id="diskUsageContainer" class="disk-usage-container">
