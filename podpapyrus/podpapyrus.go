@@ -404,7 +404,9 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	// Insert the new item HTML after the top marker
 	beforeMarker := beforeLastItem[:markerIndex+len(marker)]
 	afterMarker := beforeLastItem[markerIndex+len(marker):]
-	newIndexContent := beforeMarker + "\n          " + itemHTML.String() + afterMarker + afterEndMarker
+	// Ensure we include the end marker in the reconstruction
+	endMarkerWithNewline := endMarker + "\n"
+	newIndexContent := beforeMarker + "\n          " + itemHTML.String() + afterMarker + endMarkerWithNewline + afterEndMarker
 
 	// Write the updated content back to index.html
 	if err := os.WriteFile(indexPath, []byte(newIndexContent), 0644); err != nil {
