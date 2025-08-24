@@ -12,15 +12,15 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://podpapyrus.com/" />
-    <meta property="og:title" content="PodPapyrus is a way to read your favorite podcasts." />
-    <meta property="og:description" content="PodPapyrus is a way to read your favorite podcasts." />
+    <meta property="og:title" content="{{ .Title }} - PodPapyrus." />
+    <meta property="og:description" content="{{ .Title }} PodPapyrus." />
     <meta property="og:image" content="https://andrewarrow.dev/podpapyrus/images/{{.Id}}.jpg" />
           
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://podpapyrus.com/" />
-    <meta property="twitter:title" content="PodPapyrus is a way to read your favorite podcasts." />
-    <meta property="twitter:description" content="PodPapyrus is a way to read your favorite podcasts." />
+    <meta property="twitter:title" content="{{ .Title }} PodPapyrus." />
+    <meta property="twitter:description" content="PodPapyrus PodPapyrus." />
     <meta property="twitter:image" content="https://andrewarrow.dev/podpapyrus/images/{{.Id}}.jpg" />
     
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
