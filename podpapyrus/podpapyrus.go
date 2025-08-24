@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -323,7 +322,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("error executing template: %v", err)
 	}
 
-	// Copy thumbnail image to the images directory
+	// Superimpose podpapyrus.png onto thumbnail image and save to images directory
 	imgSourcePath := fmt.Sprintf("./data/%s.jpg", videoId)
 	imgDir := filepath.Join(basePath, "images")
 	if err := os.MkdirAll(imgDir, 0755); err != nil {
@@ -331,25 +330,16 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	}
 
 	imgDestPath := filepath.Join(imgDir, videoId+".jpg")
-	sourceFile, err := os.Open(imgSourcePath)
-	if err != nil {
-		return nil, fmt.Errorf("error opening source image: %v", err)
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(imgDestPath)
-	if err != nil {
-		return nil, fmt.Errorf("error creating destination image: %v", err)
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return nil, fmt.Errorf("error copying image: %v", err)
+	podpapyrusPath := "./firefox/podpapyrus.png"
+	
+	// Use ImageMagick composite to superimpose podpapyrus.png onto the thumbnail
+	cmd := exec.Command("composite", podpapyrusPath, imgSourcePath, imgDestPath)
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("error compositing images with ImageMagick: %v", err)
 	}
 
 	fmt.Printf("[Podpapyrus] Successfully created HTML file: %s\n", outputPath)
-	fmt.Printf("[Podpapyrus] Successfully copied image to: %s\n", imgDestPath)
+	fmt.Printf("[Podpapyrus] Successfully composited image with podpapyrus overlay to: %s\n", imgDestPath)
 
 	// Generate item HTML using item.html template
 	fmt.Printf("[Podpapyrus] Generating item HTML for summaries list...\n")
