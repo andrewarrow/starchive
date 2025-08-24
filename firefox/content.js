@@ -485,6 +485,10 @@ let firstGestureUsed = false;
 let currentVideoId = null;
 
 function setupFirstGestureCopyOnce() {
+  // Disabled: First gesture clipboard copying
+  console.log('[Starchive] First gesture clipboard copying is disabled');
+  return;
+  
   if (firstGestureUsed) return;
   
   // Only enable first gesture detection on YouTube and Instagram
