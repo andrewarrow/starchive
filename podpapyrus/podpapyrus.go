@@ -257,6 +257,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	// Generate summary using claude CLI
 	fmt.Printf("[Podpapyrus] Generating summary using claude CLI...\n")
 	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
+	summaryCmd.Dir = "/Users/aa"
 	summaryOutput, err := summaryCmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("error generating summary: %v", err)
@@ -266,6 +267,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	// Generate bullets using claude CLI
 	fmt.Printf("[Podpapyrus] Generating bullets using claude CLI...\n")
 	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
+	bulletsCmd.Dir = "/Users/aa"
 	bulletsOutput, err := bulletsCmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("error generating bullets: %v", err)
