@@ -333,7 +333,8 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	podpapyrusPath := "./firefox/podpapyrus.png"
 	
 	// Use ImageMagick composite to superimpose podpapyrus.png onto the thumbnail
-	cmd := exec.Command("composite", podpapyrusPath, imgSourcePath, imgDestPath)
+	// Make podpapyrus.png 4x larger and center it
+	cmd := exec.Command("composite", "-resize", "400%", "-gravity", "center", podpapyrusPath, imgSourcePath, imgDestPath)
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("error compositing images with ImageMagick: %v", err)
 	}
