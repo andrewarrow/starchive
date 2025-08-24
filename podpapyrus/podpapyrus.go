@@ -364,16 +364,45 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 
 	// Find the "<!-- top of list -->" marker and insert the new item after it
 	marker := "<!-- top of list -->"
+	endMarker := "<!-- end of a tags -->"
 	indexStr := string(indexContent)
 	markerIndex := strings.Index(indexStr, marker)
 	if markerIndex == -1 {
 		return nil, fmt.Errorf("could not find '<!-- top of list -->' marker in index.html")
 	}
 
-	// Insert the new item HTML after the marker
-	beforeMarker := indexStr[:markerIndex+len(marker)]
-	afterMarker := indexStr[markerIndex+len(marker):]
-	newIndexContent := beforeMarker + "\n          " + itemHTML.String() + afterMarker
+	endMarkerIndex := strings.Index(indexStr, endMarker)
+	if endMarkerIndex == -1 {
+		return nil, fmt.Errorf("could not find '<!-- end of a tags -->' marker in index.html")
+	}
+
+	// Find the last </a> tag before the end marker to remove the bottom item
+	beforeEndMarker := indexStr[:endMarkerIndex]
+	lastATagIndex := strings.LastIndex(beforeEndMarker, "</a>")
+	if lastATagIndex == -1 {
+		return nil, fmt.Errorf("could not find last </a> tag before end marker")
+	}
+
+	// Find the start of this last <a> tag by working backwards
+	// Look for the opening <a tag that corresponds to this closing tag
+	aTagPattern := `<a href="[^"]*" class="block bg-gray-800`
+	aTagRe := regexp.MustCompile(aTagPattern)
+	allMatches := aTagRe.FindAllStringIndex(beforeEndMarker, -1)
+	if len(allMatches) == 0 {
+		return nil, fmt.Errorf("could not find any <a> tags before end marker")
+	}
+	
+	// Get the last match (which should be the start of the last item)
+	lastATagStartIndex := allMatches[len(allMatches)-1][0]
+
+	// Remove the last item by excluding it from the content
+	beforeLastItem := indexStr[:lastATagStartIndex]
+	afterEndMarker := indexStr[endMarkerIndex:]
+
+	// Insert the new item HTML after the top marker
+	beforeMarker := beforeLastItem[:markerIndex+len(marker)]
+	afterMarker := beforeLastItem[markerIndex+len(marker):]
+	newIndexContent := beforeMarker + "\n          " + itemHTML.String() + afterMarker + afterEndMarker
 
 	// Write the updated content back to index.html
 	if err := os.WriteFile(indexPath, []byte(newIndexContent), 0644); err != nil {
