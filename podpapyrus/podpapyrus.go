@@ -254,16 +254,6 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("could not extract title from metadata")
 	}
 
-	// Generate summary using claude CLI
-	fmt.Printf("[Podpapyrus] Generating summary using claude CLI...\n")
-	summaryCmd := exec.Command("claude", "-p", "summarize this text and return the response as clean HTML with appropriate tags like <p>, <strong>, <em>, etc. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
-	summaryCmd.Dir = "/Users/aa"
-	summaryOutput, err := summaryCmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("error generating summary: %v", err)
-	}
-	summary := string(summaryOutput)
-
 	// Generate bullets using claude CLI
 	fmt.Printf("[Podpapyrus] Generating bullets using claude CLI...\n")
 	bulletsCmd := exec.Command("claude", "-p", "list the top 18 important things from all this text and return the response as clean HTML using <ul> and <li> tags. Do not include <html>, <head>, or <body> tags, just the content: "+string(textContent))
@@ -278,7 +268,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	paragraphs := ProcessTranscriptText(string(textContent))
 
 	// Extract short summary (40-50 words)
-	shortSummary := ExtractShortSummary(summary, 45)
+	shortSummary := ExtractShortSummary(bullets, 45)
 
 	// Prepare template data
 	templateData := struct {
@@ -293,7 +283,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		Title:      title,
 		Id:         videoId,
 		Text:       string(textContent),
-		Summary:    template.HTML(summary),
+		Summary:    "",
 		Short:      template.HTML(StripHTMLTags(shortSummary)),
 		Bullets:    template.HTML(bullets),
 		Paragraphs: paragraphs,
@@ -333,7 +323,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 
 	imgDestPath := filepath.Join(imgDir, videoId+".jpg")
 	podpapyrusPath := "./firefox/podpapyrus.png"
-	
+
 	// Use ImageMagick composite to superimpose podpapyrus.png onto the thumbnail
 	// Make podpapyrus.png 4x larger and center it
 	cmd := exec.Command("composite", "-resize", "400%", "-gravity", "center", podpapyrusPath, imgSourcePath, imgDestPath)
@@ -393,7 +383,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	if len(allMatches) == 0 {
 		return nil, fmt.Errorf("could not find any <a> tags before end marker")
 	}
-	
+
 	// Get the last match (which should be the start of the last item)
 	lastATagStartIndex := allMatches[len(allMatches)-1][0]
 
@@ -535,4 +525,3 @@ func ProcessCommandLine(videoId string, basePath string) error {
 	_, err := ProcessVideo(videoId, basePath)
 	return err
 }
-
