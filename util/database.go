@@ -274,7 +274,14 @@ func (d *Database) CacheMetadata(metadata VideoMetadata) error {
 
 // MarkVocalDone marks vocal processing as complete for a track
 func (d *Database) MarkVocalDone(id string) error {
-	_, err := d.db.Exec("UPDATE video_metadata SET vocal_done = 1 WHERE id = ?", id)
+	// First ensure record exists
+	_, err := d.db.Exec(`INSERT OR IGNORE INTO video_metadata (id, title, last_modified, vocal_done) VALUES (?, '', 0, 0)`, id)
+	if err != nil {
+		return err
+	}
+	
+	// Then update vocal_done status
+	_, err = d.db.Exec("UPDATE video_metadata SET vocal_done = 1 WHERE id = ?", id)
 	return err
 }
 
