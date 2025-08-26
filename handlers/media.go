@@ -326,9 +326,25 @@ func HandlePodpapyrus() {
 
 	fmt.Printf("Detected platform: %s, ID: %s\n", platform, id)
 
-	// Currently only support YouTube
-	if platform != "youtube" {
-		fmt.Printf("Error: podpapyrus currently only supports YouTube videos\n")
+	// Check if local files exist first
+	txtPath := fmt.Sprintf("./data/%s.txt", id)
+	jpgPath := fmt.Sprintf("./data/%s.jpg", id)
+	
+	txtExists := false
+	jpgExists := false
+	
+	if _, err := os.Stat(txtPath); err == nil {
+		txtExists = true
+	}
+	if _, err := os.Stat(jpgPath); err == nil {
+		jpgExists = true
+	}
+	
+	// If both local files exist, allow processing regardless of platform
+	if txtExists && jpgExists {
+		fmt.Printf("Found local files %s.txt and %s.jpg, processing with podpapyrus\n", id, id)
+	} else if platform != "youtube" {
+		fmt.Printf("Error: podpapyrus currently only supports YouTube videos (unless local .txt and .jpg files exist)\n")
 		os.Exit(1)
 	}
 

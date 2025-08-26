@@ -204,28 +204,45 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 
 	fmt.Printf("[Podpapyrus] HTML file not found, running podpapyrus processing\n")
 
-	// Get YouTube cookie file
-	cookieFile := media.GetCookieFile("youtube")
-
-	// Download thumbnail and subtitles
-	fmt.Printf("[Podpapyrus] Downloading thumbnail and subtitles for %s...\n", videoId)
-
-	if err := media.DownloadYouTubeThumbnail(videoId, cookieFile); err != nil {
-		return nil, fmt.Errorf("error downloading thumbnail: %v", err)
-	}
-
-	if err := media.DownloadYouTubeSubtitles(videoId, cookieFile); err != nil {
-		return nil, fmt.Errorf("error downloading subtitles: %v", err)
-	}
-
-	fmt.Printf("[Podpapyrus] Successfully downloaded thumbnail and subtitles for %s\n", videoId)
-
-	// Check if txt file was created by VTT parsing
+	// Check if local files exist first
 	txtPath := fmt.Sprintf("./data/%s.txt", videoId)
-	if _, err := os.Stat(txtPath); err != nil {
-		return nil, fmt.Errorf("text file was not created from VTT parsing: %v", err)
+	jpgPath := fmt.Sprintf("./data/%s.jpg", videoId)
+	
+	txtExists := false
+	jpgExists := false
+	
+	if _, err := os.Stat(txtPath); err == nil {
+		txtExists = true
 	}
-	fmt.Printf("[Podpapyrus] Text file created: %s\n", txtPath)
+	if _, err := os.Stat(jpgPath); err == nil {
+		jpgExists = true
+	}
+	
+	// Get YouTube cookie file (needed for potential downloads)
+	cookieFile := media.GetCookieFile("youtube")
+	
+	if txtExists && jpgExists {
+		fmt.Printf("[Podpapyrus] Found local files %s.txt and %s.jpg, skipping downloads\n", videoId, videoId)
+	} else {
+		// Download thumbnail and subtitles
+		fmt.Printf("[Podpapyrus] Downloading thumbnail and subtitles for %s...\n", videoId)
+
+		if err := media.DownloadYouTubeThumbnail(videoId, cookieFile); err != nil {
+			return nil, fmt.Errorf("error downloading thumbnail: %v", err)
+		}
+
+		if err := media.DownloadYouTubeSubtitles(videoId, cookieFile); err != nil {
+			return nil, fmt.Errorf("error downloading subtitles: %v", err)
+		}
+
+		fmt.Printf("[Podpapyrus] Successfully downloaded thumbnail and subtitles for %s\n", videoId)
+
+		// Check if txt file was created by VTT parsing
+		if _, err := os.Stat(txtPath); err != nil {
+			return nil, fmt.Errorf("text file was not created from VTT parsing: %v", err)
+		}
+	}
+	fmt.Printf("[Podpapyrus] Text file verified: %s\n", txtPath)
 
 	// Read the text file content
 	textContent, err := os.ReadFile(txtPath)
@@ -233,12 +250,18 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("error reading text file: %v", err)
 	}
 
-	// Download and read JSON metadata to get title
+	// Handle JSON metadata - download if needed or use existing
 	jsonPath := fmt.Sprintf("./data/%s.json", videoId)
-	if err := media.DownloadYouTubeJSON(videoId, cookieFile); err != nil {
-		return nil, fmt.Errorf("error downloading JSON metadata: %v", err)
+	var title string
+	
+	if _, err := os.Stat(jsonPath); err != nil {
+		// Download JSON metadata for YouTube videos
+		if err := media.DownloadYouTubeJSON(videoId, cookieFile); err != nil {
+			return nil, fmt.Errorf("error downloading JSON metadata: %v", err)
+		}
 	}
 
+	// Read the JSON metadata
 	jsonContent, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading JSON metadata: %v", err)
@@ -249,10 +272,11 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("error parsing JSON metadata: %v", err)
 	}
 
-	title, ok := metadata["title"].(string)
+	titleValue, ok := metadata["title"].(string)
 	if !ok {
 		return nil, fmt.Errorf("could not extract title from metadata")
 	}
+	title = titleValue
 
 	// Generate bullets using claude CLI
 	fmt.Printf("[Podpapyrus] Generating bullets using claude CLI...\n")
