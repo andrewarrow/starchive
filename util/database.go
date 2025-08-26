@@ -274,14 +274,29 @@ func (d *Database) CacheMetadata(metadata VideoMetadata) error {
 
 // MarkVocalDone marks vocal processing as complete for a track
 func (d *Database) MarkVocalDone(id string) error {
-	// First ensure record exists
-	_, err := d.db.Exec(`INSERT OR IGNORE INTO video_metadata (id, title, last_modified, vocal_done) VALUES (?, '', 0, 0)`, id)
-	if err != nil {
+	// Check if record exists in database directly (not using GetCachedMetadata which calls tryLoadFromJSON)
+	var exists bool
+	err := d.db.QueryRow("SELECT 1 FROM video_metadata WHERE id = ? LIMIT 1", id).Scan(&exists)
+	
+	if err == nil {
+		// Record exists, update it
+		_, err := d.db.Exec("UPDATE video_metadata SET vocal_done = 1 WHERE id = ?", id)
+		return err
+	} else if err == sql.ErrNoRows {
+		// Record doesn't exist, create it with title
+		title := ""
+		filePath := fmt.Sprintf("./data/%s.json", id)
+		if metadata, err := ParseJSONMetadata(filePath); err == nil && metadata.Title != nil {
+			title = *metadata.Title
+		}
+		
+		// Insert new record with title and vocal_done = 1
+		_, err := d.db.Exec(`INSERT INTO video_metadata (id, title, last_modified, vocal_done) VALUES (?, ?, ?, 1)`, 
+			id, title, 0)
 		return err
 	}
 	
-	// Then update vocal_done status
-	_, err = d.db.Exec("UPDATE video_metadata SET vocal_done = 1 WHERE id = ?", id)
+	// Other database error
 	return err
 }
 
