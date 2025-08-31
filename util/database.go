@@ -23,6 +23,9 @@ type VideoMetadata struct {
 	VocalKey    *string  `json:"vocal_key"`
 	InstrumentalBPM *float64 `json:"instrumental_bpm"`
 	InstrumentalKey *string  `json:"instrumental_key"`
+	FundamentalFreq *float64 `json:"fundamental_frequency"`
+	PeakFreq        *float64 `json:"peak_frequency"`
+	SpectralCentroid *float64 `json:"spectral_centroid"`
 	Duration    *float64 `json:"duration"`
 	TrackType   *string  `json:"track_type"`
 	LastModified time.Time
@@ -66,6 +69,22 @@ func InitDatabase() (*Database, error) {
 		return nil, fmt.Errorf("failed to create table: %v", err)
 	}
 	
+	// Add new columns if they don't exist (for existing databases)
+	migrationSQL := []string{
+		"ALTER TABLE video_metadata ADD COLUMN fundamental_freq REAL",
+		"ALTER TABLE video_metadata ADD COLUMN peak_freq REAL", 
+		"ALTER TABLE video_metadata ADD COLUMN spectral_centroid REAL",
+	}
+	
+	for _, stmt := range migrationSQL {
+		_, err := db.Exec(stmt)
+		// Ignore "duplicate column name" errors as the column already exists
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("failed to migrate database: %v", err)
+		}
+	}
+	
 	return &Database{db: db}, nil
 }
 
@@ -80,13 +99,13 @@ func (d *Database) GetCachedMetadata(id string) (*VideoMetadata, bool) {
 	var lastModified int64
 	
 	// Use the original database schema to maintain compatibility
-	query := `SELECT id, title, last_modified, vocal_done, bpm, key
+	query := `SELECT id, title, last_modified, vocal_done, bpm, key, fundamental_freq, peak_freq, spectral_centroid
 	          FROM video_metadata WHERE id = ?`
 	
 	row := d.db.QueryRow(query, id)
 	
 	err := row.Scan(&metadata.ID, &metadata.Title, &lastModified, &metadata.VocalDone,
-		&metadata.BPM, &metadata.Key)
+		&metadata.BPM, &metadata.Key, &metadata.FundamentalFreq, &metadata.PeakFreq, &metadata.SpectralCentroid)
 	
 	if err == sql.ErrNoRows {
 		return tryLoadFromJSON(id)
@@ -130,8 +149,8 @@ func tryLoadFromJSON(id string) (*VideoMetadata, bool) {
 // SaveMetadata saves metadata to the database
 func (d *Database) SaveMetadata(metadata *VideoMetadata) error {
 	query := `INSERT OR REPLACE INTO video_metadata 
-		(id, title, last_modified, vocal_done, bpm, key) 
-		VALUES (?, ?, ?, ?, ?, ?)`
+		(id, title, last_modified, vocal_done, bpm, key, fundamental_freq, peak_freq, spectral_centroid) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	
 	title := ""
 	if metadata.Title != nil {
@@ -139,14 +158,14 @@ func (d *Database) SaveMetadata(metadata *VideoMetadata) error {
 	}
 	
 	_, err := d.db.Exec(query, metadata.ID, title, metadata.LastModified.Unix(),
-		metadata.VocalDone, metadata.BPM, metadata.Key)
+		metadata.VocalDone, metadata.BPM, metadata.Key, metadata.FundamentalFreq, metadata.PeakFreq, metadata.SpectralCentroid)
 	
 	return err
 }
 
 // GetAllMetadata returns all metadata entries
 func (d *Database) GetAllMetadata() ([]VideoMetadata, error) {
-	query := `SELECT id, title, last_modified, vocal_done, bpm, key
+	query := `SELECT id, title, last_modified, vocal_done, bpm, key, fundamental_freq, peak_freq, spectral_centroid
 	          FROM video_metadata ORDER BY last_modified DESC`
 	
 	rows, err := d.db.Query(query)
@@ -161,7 +180,7 @@ func (d *Database) GetAllMetadata() ([]VideoMetadata, error) {
 		var lastModified int64
 		
 		err := rows.Scan(&metadata.ID, &metadata.Title, &lastModified, 
-			&metadata.VocalDone, &metadata.BPM, &metadata.Key)
+			&metadata.VocalDone, &metadata.BPM, &metadata.Key, &metadata.FundamentalFreq, &metadata.PeakFreq, &metadata.SpectralCentroid)
 		if err != nil {
 			continue
 		}
@@ -204,7 +223,7 @@ func (d *Database) DeleteMetadata(id string) error {
 // FindMetadataByPattern finds metadata entries matching a pattern
 func (d *Database) FindMetadataByPattern(pattern string) ([]VideoMetadata, error) {
 	pattern = strings.ToLower(pattern)
-	query := `SELECT id, title, last_modified, vocal_done, bpm, key
+	query := `SELECT id, title, last_modified, vocal_done, bpm, key, fundamental_freq, peak_freq, spectral_centroid
 	          FROM video_metadata 
 	          WHERE LOWER(id) LIKE ? OR LOWER(title) LIKE ?
 	          ORDER BY last_modified DESC`
@@ -222,7 +241,7 @@ func (d *Database) FindMetadataByPattern(pattern string) ([]VideoMetadata, error
 		var lastModified int64
 		
 		err := rows.Scan(&metadata.ID, &metadata.Title, &lastModified,
-			&metadata.VocalDone, &metadata.BPM, &metadata.Key)
+			&metadata.VocalDone, &metadata.BPM, &metadata.Key, &metadata.FundamentalFreq, &metadata.PeakFreq, &metadata.SpectralCentroid)
 		if err != nil {
 			continue
 		}
@@ -311,5 +330,19 @@ func (d *Database) StoreBPMData(id string, bmp float64, key string) error {
 	// Then update with BPM data
 	_, err = d.db.Exec(`UPDATE video_metadata SET bpm = ?, key = ? WHERE id = ?`,
 		bmp, key, id)
+	return err
+}
+
+// StoreFrequencyData stores frequency analysis data for a track
+func (d *Database) StoreFrequencyData(id string, fundamentalFreq, peakFreq, spectralCentroid *float64) error {
+	// First ensure record exists
+	_, err := d.db.Exec(`INSERT OR IGNORE INTO video_metadata (id, title, last_modified, vocal_done) VALUES (?, '', 0, 0)`, id)
+	if err != nil {
+		return err
+	}
+	
+	// Then update with frequency data
+	_, err = d.db.Exec(`UPDATE video_metadata SET fundamental_freq = ?, peak_freq = ?, spectral_centroid = ? WHERE id = ?`,
+		fundamentalFreq, peakFreq, spectralCentroid, id)
 	return err
 }

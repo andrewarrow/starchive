@@ -209,6 +209,73 @@ func HandleBpm() {
 	}
 }
 
+func HandleHz() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: starchive hz <id>")
+		fmt.Println("Example: starchive hz Oa_RSwwpPaA")
+		os.Exit(1)
+	}
+
+	id := os.Args[2]
+	inputPath := fmt.Sprintf("./data/%s.wav", id)
+
+	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
+		fmt.Printf("Error: Input file %s does not exist\n", inputPath)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Analyzing frequency for %s...\n", id)
+	
+	hzCmd := exec.Command("python3", "bpm/frequency_analysis.py", inputPath)
+	output, err := hzCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Error analyzing frequency: %v\n", err)
+		fmt.Printf("Output: %s\n", string(output))
+		os.Exit(1)
+	}
+	
+	fmt.Printf("%s\n", string(output))
+	
+	var freqData map[string]interface{}
+	if err := json.Unmarshal(output, &freqData); err != nil {
+		fmt.Printf("Error parsing frequency JSON: %v\n", err)
+		os.Exit(1)
+	}
+
+	db, err := util.InitDatabase()
+	if err != nil {
+		fmt.Printf("Warning: Could not initialize database to store frequency data: %v\n", err)
+		return
+	}
+	defer db.Close()
+
+	var fundamentalFreq, peakFreq, spectralCentroid *float64
+	
+	if val, ok := freqData["fundamental_frequency"]; ok && val != nil {
+		if freq, ok := val.(float64); ok {
+			fundamentalFreq = &freq
+		}
+	}
+	
+	if val, ok := freqData["peak_frequency"]; ok && val != nil {
+		if freq, ok := val.(float64); ok {
+			peakFreq = &freq
+		}
+	}
+	
+	if val, ok := freqData["spectral_centroid"]; ok && val != nil {
+		if freq, ok := val.(float64); ok {
+			spectralCentroid = &freq
+		}
+	}
+
+	if err := db.StoreFrequencyData(id, fundamentalFreq, peakFreq, spectralCentroid); err != nil {
+		fmt.Printf("Warning: Could not store frequency data in database: %v\n", err)
+	} else {
+		fmt.Printf("\nFrequency data stored in database for %s\n", id)
+	}
+}
+
 func HandleSync() {
 	if len(os.Args) < 4 {
 		fmt.Println("Usage: starchive sync <id1> <id2>")

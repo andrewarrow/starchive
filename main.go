@@ -32,7 +32,7 @@ func updateYtDlp() {
 func main() {
 	// Simple subcommand dispatch: first arg is the command
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run         Start the server (default features)\n  ls          List files in ./data\n  dl          Download video with given ID\n  external    Import external audio file to data directory\n  vocal       Extract vocals from audio file using audio-separator\n  bpm         Analyze BPM and key of vocal and instrumental files\n  sync        Synchronize two audio files for mashups using rubberband\n  split       Split audio file by silence detection\n  rm          Remove all files with specified id from ./data\n  play        Play a wav file starting from the middle (press any key to stop)\n  demo        Create 30-second demo with +3 pitch shift from middle of track\n  blend       Interactive blend shell for mixing two tracks\n  blend-clear Clear blend metadata for track combinations\n  retry       Retry downloading specific components (vtt, json, thumbnail, video) for a given ID\n  ul          Upload mp4 to YouTube using the given ID\n  small       Create small optimized video from data/id.mp4\n  podpapyrus  Download thumbnail and VTT, create text file from given ID")
+		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run         Start the server (default features)\n  ls          List files in ./data\n  dl          Download video with given ID\n  external    Import external audio file to data directory\n  vocal       Extract vocals from audio file using audio-separator\n  bpm         Analyze BPM and key of vocal and instrumental files\n  hz          Analyze frequency characteristics of audio files\n  sync        Synchronize two audio files for mashups using rubberband\n  split       Split audio file by silence detection\n  rm          Remove all files with specified id from ./data\n  play        Play a wav file starting from the middle (press any key to stop)\n  demo        Create 30-second demo with +3 pitch shift from middle of track\n  blend       Interactive blend shell for mixing two tracks\n  blend-clear Clear blend metadata for track combinations\n  retry       Retry downloading specific components (vtt, json, thumbnail, video) for a given ID\n  ul          Upload mp4 to YouTube using the given ID\n  small       Create small optimized video from data/id.mp4\n  podpapyrus  Download thumbnail and VTT, create text file from given ID")
 		os.Exit(1)
 	}
 
@@ -68,6 +68,8 @@ func main() {
 		handlers.HandleVocal()
 	case "bpm":
 		handlers.HandleBpm()
+	case "hz":
+		handlers.HandleHz()
 	case "sync":
 		handlers.HandleSync()
 	case "split":
@@ -92,7 +94,7 @@ func main() {
 		handlers.HandlePodpapyrus()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
-		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run         Start the server (default features)\n  ls          List files in ./data\n  dl          Download video with given ID\n  external    Import external audio file to data directory\n  vocal       Extract vocals from audio file using audio-separator\n  bpm         Analyze BPM and key of vocal and instrumental files\n  sync        Synchronize two audio files for mashups using rubberband\n  split       Split audio file by silence detection\n  rm          Remove all files with specified id from ./data\n  play        Play a wav file starting from the middle (press any key to stop)\n  demo        Create 30-second demo with +3 pitch shift from middle of track\n  blend       Interactive blend shell for mixing two tracks\n  blend-clear Clear blend metadata for track combinations\n  retry       Retry downloading specific components (vtt, json, thumbnail, video) for a given ID\n  ul          Upload mp4 to YouTube using the given ID\n  small       Create small optimized video from data/id.mp4\n  podpapyrus  Download thumbnail and VTT, create text file from given ID")
+		fmt.Println("Usage: starchive <command> [args]\n\nCommands:\n  run         Start the server (default features)\n  ls          List files in ./data\n  dl          Download video with given ID\n  external    Import external audio file to data directory\n  vocal       Extract vocals from audio file using audio-separator\n  bpm         Analyze BPM and key of vocal and instrumental files\n  hz          Analyze frequency characteristics of audio files\n  sync        Synchronize two audio files for mashups using rubberband\n  split       Split audio file by silence detection\n  rm          Remove all files with specified id from ./data\n  play        Play a wav file starting from the middle (press any key to stop)\n  demo        Create 30-second demo with +3 pitch shift from middle of track\n  blend       Interactive blend shell for mixing two tracks\n  blend-clear Clear blend metadata for track combinations\n  retry       Retry downloading specific components (vtt, json, thumbnail, video) for a given ID\n  ul          Upload mp4 to YouTube using the given ID\n  small       Create small optimized video from data/id.mp4\n  podpapyrus  Download thumbnail and VTT, create text file from given ID")
 		os.Exit(1)
 	}
 }
