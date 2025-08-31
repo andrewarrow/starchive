@@ -33,6 +33,29 @@ type ProcessingResult struct {
 	VideoId    string `json:"videoId"`
 }
 
+func GenerateSEOURL(title string) string {
+	// Convert to lowercase
+	seoURL := strings.ToLower(title)
+	
+	// Replace spaces and special characters with hyphens
+	re := regexp.MustCompile(`[^a-z0-9]+`)
+	seoURL = re.ReplaceAllString(seoURL, "-")
+	
+	// Remove leading/trailing hyphens
+	seoURL = strings.Trim(seoURL, "-")
+	
+	// Limit length to reasonable size (60 chars)
+	if len(seoURL) > 60 {
+		seoURL = seoURL[:60]
+		// Make sure we don't cut in the middle of a word
+		if lastHyphen := strings.LastIndex(seoURL, "-"); lastHyphen > 40 {
+			seoURL = seoURL[:lastHyphen]
+		}
+	}
+	
+	return seoURL
+}
+
 func StripHTMLTags(html string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
@@ -140,10 +163,43 @@ func ProcessTranscriptText(rawText string) []template.HTML {
 func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	fmt.Printf("[Podpapyrus] Processing video ID: %s\n", videoId)
 
-	// Check if HTML file already exists
+	// First, try to get title from JSON metadata to check for SEO file
+	jsonPath := fmt.Sprintf("./data/%s.json", videoId)
+	var seoFilePath string
+	
+	if _, err := os.Stat(jsonPath); err == nil {
+		jsonContent, err := os.ReadFile(jsonPath)
+		if err == nil {
+			var metadata map[string]interface{}
+			if err := json.Unmarshal(jsonContent, &metadata); err == nil {
+				if titleValue, ok := metadata["title"].(string); ok {
+					seoURL := GenerateSEOURL(titleValue)
+					seoFilePath = filepath.Join(basePath, "summaries", seoURL+".html")
+				}
+			}
+		}
+	}
+	
+	// Check if SEO HTML file already exists
+	if seoFilePath != "" {
+		if _, err := os.Stat(seoFilePath); err == nil {
+			fmt.Printf("[Podpapyrus] SEO HTML file exists, serving content\n")
+			content, err := os.ReadFile(seoFilePath)
+			if err != nil {
+				return nil, fmt.Errorf("error reading SEO HTML file: %v", err)
+			}
+			return &ProcessingResult{
+				HasContent: true,
+				Content:    string(content),
+				VideoId:    videoId,
+			}, nil
+		}
+	}
+	
+	// Fallback: Check if ID-based HTML file exists (legacy support)
 	htmlFilePath := filepath.Join(basePath, "summaries", videoId+".html")
 	if _, err := os.Stat(htmlFilePath); err == nil {
-		fmt.Printf("[Podpapyrus] HTML file exists, serving content\n")
+		fmt.Printf("[Podpapyrus] ID-based HTML file exists, serving content\n")
 		content, err := os.ReadFile(htmlFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading HTML file: %v", err)
@@ -251,8 +307,9 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	}
 
 	// Handle JSON metadata - download if needed or use existing
-	jsonPath := fmt.Sprintf("./data/%s.json", videoId)
+	jsonPath = fmt.Sprintf("./data/%s.json", videoId)
 	var title string
+	var seoURL string
 	
 	if _, err := os.Stat(jsonPath); err != nil {
 		// Download JSON metadata for YouTube videos
@@ -277,6 +334,9 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("could not extract title from metadata")
 	}
 	title = titleValue
+	
+	// Generate SEO URL from title
+	seoURL = GenerateSEOURL(title)
 
 	// Generate bullets using claude CLI
 	fmt.Printf("[Podpapyrus] Generating bullets using claude CLI...\n")
@@ -298,6 +358,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	templateData := struct {
 		Title      string
 		Id         string
+		SEOURL     string
 		Text       string
 		Summary    template.HTML
 		Short      template.HTML
@@ -306,6 +367,7 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 	}{
 		Title:      title,
 		Id:         videoId,
+		SEOURL:     seoURL,
 		Text:       string(textContent),
 		Summary:    "",
 		Short:      template.HTML(StripHTMLTags(shortSummary)),
@@ -325,17 +387,30 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("error creating output directory: %v", err)
 	}
 
-	// Create output file
-	outputPath := filepath.Join(outputDir, videoId+".html")
-	outputFile, err := os.Create(outputPath)
+	// Use already generated SEO URL
+	seoFilename := seoURL + ".html"
+	
+	// Create SEO-friendly output file (main content)
+	seoOutputPath := filepath.Join(outputDir, seoFilename)
+	seoOutputFile, err := os.Create(seoOutputPath)
 	if err != nil {
-		return nil, fmt.Errorf("error creating output file: %v", err)
+		return nil, fmt.Errorf("error creating SEO output file: %v", err)
 	}
-	defer outputFile.Close()
+	defer seoOutputFile.Close()
 
-	// Execute template
-	if err := tmpl.Execute(outputFile, templateData); err != nil {
-		return nil, fmt.Errorf("error executing template: %v", err)
+	// Execute template for SEO file
+	if err := tmpl.Execute(seoOutputFile, templateData); err != nil {
+		return nil, fmt.Errorf("error executing template for SEO file: %v", err)
+	}
+
+	// Create redirect file for ID-based URL
+	idOutputPath := filepath.Join(outputDir, videoId+".html")
+	redirectContent := fmt.Sprintf(`<script>
+  document.location.href='./%s';
+</script>`, seoFilename)
+	
+	if err := os.WriteFile(idOutputPath, []byte(redirectContent), 0644); err != nil {
+		return nil, fmt.Errorf("error creating redirect file: %v", err)
 	}
 
 	// Superimpose podpapyrus.png onto thumbnail image and save to images directory
@@ -355,7 +430,8 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 		return nil, fmt.Errorf("error compositing images with ImageMagick: %v", err)
 	}
 
-	fmt.Printf("[Podpapyrus] Successfully created HTML file: %s\n", outputPath)
+	fmt.Printf("[Podpapyrus] Successfully created SEO HTML file: %s\n", seoOutputPath)
+	fmt.Printf("[Podpapyrus] Successfully created redirect file: %s\n", idOutputPath)
 	fmt.Printf("[Podpapyrus] Successfully composited image with podpapyrus overlay to: %s\n", imgDestPath)
 
 	// Generate item HTML using item.html template
@@ -532,10 +608,10 @@ func ProcessVideo(videoId string, basePath string) (*ProcessingResult, error) {
 
 	fmt.Printf("[Podpapyrus] Successfully updated homepage index with new item\n")
 
-	// Read the created HTML file and return it
-	htmlContent, err := os.ReadFile(outputPath)
+	// Read the created SEO HTML file and return it
+	htmlContent, err := os.ReadFile(seoOutputPath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading created HTML file: %v", err)
+		return nil, fmt.Errorf("error reading created SEO HTML file: %v", err)
 	}
 
 	return &ProcessingResult{
